@@ -11,6 +11,11 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.8
   args: ^2.4.2  # ✅ TAMBAHAN
+  image_picker: ^1.2.1
+  shared_preferences: ^2.2.2
+  sqflite: ^2.3.0
+  path: ^1.8.3
+  intl: ^0.20.2
 
 dev_dependencies:
   flutter_test:
@@ -19,3 +24,12 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/images/sorghum_bg.png     # Gambar background Screen 1
+    - assets/images/logo.png           # Gambar logo tanaman (di Screen 1)
+    - assets/images/farmer.png         # Gambar ilustrasi petani (di Screen 2)
+    - assets/images/banner_bg.png      # Gambar banner kebun sorgum (di Screen 3)
+    - assets/images/leaf.png 
+    - assets/images/persiapan_lahan.png
+    - assets/images/daun_kuning.png
+    - assets/images/pemupukan.png

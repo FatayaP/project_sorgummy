@@ -1,22 +1,22 @@
 import 'package:flutter/material.dart';
-import 'screens/splash_screen.dart'; // Import dari dalam folder screens
+import 'presentation/screens/onboarding_screen.dart';
 
 void main() {
-  runApp(const SorgumCareApp());
+  runApp(const MyApp());
 }
 
-class SorgumCareApp extends StatelessWidget {
-  const SorgumCareApp({super.key});
+class MyApp extends StatelessWidget {
+  const MyApp({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      title: 'Sorgummi AI',
       debugShowCheckedModeBanner: false,
-      title: 'SorgumCareAI',
       theme: ThemeData(
-        fontFamily: 'Roboto', 
+        useMaterial3: true,
       ),
-      home: const SplashScreen(),
+      home: const OnboardingScreen(),
     );
   }
 }
