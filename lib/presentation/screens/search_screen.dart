@@ -1,6 +1,10 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb; // 1. FIX: Sudah diganti jadi .dart dari .shade ✅
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants/colors.dart';
-import 'edukasi_screen.dart'; 
+import '../../data/helpers/shared_prefs_helper.dart'; // Menyambungkan log aktivitas
+import 'article_detail_screen.dart'; // Jalur lemparan detail yang benar rill!
 
 class SearchScreen extends StatefulWidget {
   final String query;
@@ -15,7 +19,7 @@ class _SearchScreenState extends State<SearchScreen> {
   List<Map<String, String>> _searchResults = [];
 
   // ==========================================
-  // DATA NYA (Silakan sinkronisasikan/ganti dengan model data asli atau API Anda di sini)
+  // DATA NYA (Sesuai dengan struktur data artikel kamu)
   // ==========================================
   final List<Map<String, String>> _sorgumDataList = const [
     {
@@ -24,6 +28,7 @@ class _SearchScreenState extends State<SearchScreen> {
       'date': '31 Mei 2026',
       'image': 'assets/images/pemupukan.png',
       'category': 'Edukasi Budidaya',
+      'content': 'Sorgum membutuhkan nutrisi nitrogen, fosfor, dan kalium yang seimbang. Pemupukan pertama dilakukan saat tanaman berumur 10-15 hari setelah tanam menggunakan kombinasi urea dan NPK secara berkala.',
     },
     {
       'title': 'Cara Mengatasi Penyakit Daun Menguning',
@@ -31,6 +36,7 @@ class _SearchScreenState extends State<SearchScreen> {
       'date': '28 Mei 2026',
       'image': 'assets/images/daun_kuning.png',
       'category': 'Hama & Penyakit',
+      'content': 'Daun menguning pada tanaman sorgum sering kali disebabkan oleh serangan kutu daun atau kekurangan zat besi. Penanganan dini melibatkan penyemprotan pestisida organik dan pemberian pupuk mikro.',
     },
     {
       'title': 'Persiapan Lahan Ideal untuk Benih',
@@ -38,6 +44,7 @@ class _SearchScreenState extends State<SearchScreen> {
       'date': '25 Mei 2026',
       'image': 'assets/images/persiapan_lahan.png',
       'category': 'Persiapan Lahan',
+      'content': 'Tanah harus digemburkan sedalam 20-30 cm agar akar sorgum dapat tumbuh optimal. Pastikan drainase lahan diatur dengan baik untuk mencegah genangan air saat musim hujan tiba.',
     },
     {
       'title': 'Teknik Pengairan Efisien Lahan Kering',
@@ -45,6 +52,7 @@ class _SearchScreenState extends State<SearchScreen> {
       'date': '20 Mei 2026',
       'image': 'assets/images/banner_bg.png',
       'category': 'Pengelolaan Air',
+      'content': 'Meskipun sorgum tahan kekeringan, pengairan berkala pada fase pembungaan dan pengisian biji sangat menentukan bobot panen. Gunakan sistem irigasi tetes untuk menghemat air.',
     },
   ];
 
@@ -77,6 +85,26 @@ class _SearchScreenState extends State<SearchScreen> {
         }).toList();
       }
     });
+  }
+
+  // LOGIKA NAVIGASI KE DETAIL + SIMPAN LOG AKTIVITAS (Fungsional & Kebal Eror 100%)
+  void _handleArticleClick(Map<String, String> article) async {
+    final String currentTitle = article['title'] ?? 'Artikel';
+    
+    try {
+      await SharedPrefsHelper.saveActivity('Mencari & membuka artikel "$currentTitle"');
+    } catch (e) {
+      debugPrint("Gagal mencatat aktivitas pencarian: $e");
+    }
+
+    if (mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ArticleDetailScreen(data: article),
+        ),
+      );
+    }
   }
 
   @override
@@ -203,8 +231,8 @@ class _SearchScreenState extends State<SearchScreen> {
           child: Material(
             color: Colors.transparent,
             child: InkWell(
-              borderRadius: BorderRadius.circular(16),
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const EdukasiScreen())),
+              borderRadius: BorderRadius.circular(16), // 2. FIX: Sudah dibungkus BorderRadius.circular ✅
+              onTap: () => _handleArticleClick(data), 
               child: Padding(
                 padding: const EdgeInsets.all(12.0),
                 child: Row(
