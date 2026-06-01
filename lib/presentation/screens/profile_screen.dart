@@ -243,6 +243,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     await prefs.remove('logged_user_email');
+    await SharedPrefsHelper.clearRememberMeEmail();
     
     if (kIsWeb) {
       await prefs.remove('web_profile_name');

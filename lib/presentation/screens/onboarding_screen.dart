@@ -24,12 +24,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     {
       'title': 'Pantau Budidaya',
       'subtitle': 'Manajemen Pengelolaan\nSecara Mudah & Real-Time',
-      'image': 'assets/images/sorghum_track.png', // Gantilah dengan gambar slide 2 Anda
+      'image': 'assets/images/sorghum_bgg.png', // Gantilah dengan gambar slide 2 Anda
     },
     {
       'title': 'Hasil Maksimal',
       'subtitle': 'Optimalkan Kualitas Panen\nBersama Teknologi AI',
-      'image': 'assets/images/sorghum_harvest.png', // Gantilah dengan gambar slide 3 Anda
+      'image': 'assets/images/banner_bg.png', // Gantilah dengan gambar slide 3 Anda
     },
   ];
 

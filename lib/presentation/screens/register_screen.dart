@@ -39,7 +39,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     try {
       final String name = _nameController.text.trim();
-      final String email = _emailController.text.trim();
+      final String email = _emailController.text.trim().toLowerCase();
       final String phone = _phoneController.text.trim();
       final String password = _passwordController.text.trim();
 
@@ -107,7 +107,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   children: [
                     Center(
                       child: Image.asset(
-                        'assets/images/register_illustration.png',
+                        'assets/images/register.png',
                         height: 120.0,
                         fit: BoxFit.contain,
                         errorBuilder: (context, error, stackTrace) {

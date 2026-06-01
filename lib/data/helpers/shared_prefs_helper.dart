@@ -6,6 +6,8 @@ class SharedPrefsHelper {
   static const String _isFirstTimeKey = 'isFirstTime';
   static const String _isLoggedInKey = 'isLoggedIn';
   static const String _loggedUserEmailKey = 'logged_user_email';
+  static const String _rememberMeEmailKey = 'remember_me_email';
+  static const String _passwordLastChangedKey = 'password_last_changed';
 
   // --- First time flags ---
   static Future<void> setFirstTime(bool isFirstTime) async {
@@ -38,6 +40,31 @@ class SharedPrefsHelper {
   static Future<String?> getLoggedUserEmail() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_loggedUserEmailKey);
+  }
+
+  static Future<void> setRememberMeEmail(String email) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_rememberMeEmailKey, email);
+  }
+
+  static Future<String?> getRememberMeEmail() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_rememberMeEmailKey);
+  }
+
+  static Future<void> clearRememberMeEmail() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_rememberMeEmailKey);
+  }
+
+  static Future<void> setPasswordLastChanged(String value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_passwordLastChangedKey, value);
+  }
+
+  static Future<String?> getPasswordLastChanged() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_passwordLastChangedKey);
   }
 
   static String _activityKey(String userEmail) => 'activity_logs_$userEmail';

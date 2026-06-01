@@ -22,6 +22,39 @@ class _SecurityScreenState extends State<SecurityScreen> {
   bool _obscureOldPassword = true;
   bool _obscureNewPassword = true;
   bool _isLoading = false;
+  String? _passwordLastChanged;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPasswordLastChanged();
+  }
+
+  Future<void> _loadPasswordLastChanged() async {
+    final String? savedValue = await SharedPrefsHelper.getPasswordLastChanged();
+    if (savedValue != null && savedValue.isNotEmpty) {
+      setState(() {
+        _passwordLastChanged = savedValue;
+      });
+    }
+  }
+
+  String _formatDateTime(DateTime dateTime) {
+    final String year = dateTime.year.toString().padLeft(4, '0');
+    final String month = dateTime.month.toString().padLeft(2, '0');
+    final String day = dateTime.day.toString().padLeft(2, '0');
+    final String hour = dateTime.hour.toString().padLeft(2, '0');
+    final String minute = dateTime.minute.toString().padLeft(2, '0');
+    return '$year-$month-$day $hour:$minute';
+  }
+
+  Future<void> _savePasswordLastChanged() async {
+    final String value = _formatDateTime(DateTime.now());
+    await SharedPrefsHelper.setPasswordLastChanged(value);
+    setState(() {
+      _passwordLastChanged = value;
+    });
+  }
 
   @override
   void dispose() {
@@ -74,6 +107,7 @@ class _SecurityScreenState extends State<SecurityScreen> {
 
       if (changed > 0) {
         await SharedPrefsHelper.saveActivity('Mengubah password akun');
+        await _savePasswordLastChanged();
         if (mounted) {
           _showSnackBar('Password berhasil diperbarui secara permanen!');
           _oldPasswordController.clear();
@@ -151,6 +185,13 @@ class _SecurityScreenState extends State<SecurityScreen> {
                     'Pastikan gunakan gabungan huruf dan angka agar akun tetap aman.',
                     style: TextStyle(fontSize: 13, color: AppColors.textLight),
                   ),
+                  if (_passwordLastChanged != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'Terakhir diubah: $_passwordLastChanged',
+                      style: const TextStyle(fontSize: 13, color: AppColors.textLight),
+                    ),
+                  ],
                   const SizedBox(height: 24),
 
                   // Field Password Lama

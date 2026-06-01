@@ -230,14 +230,15 @@ class DatabaseHelper {
 
   Future<int> insertUser(Map<String, dynamic> user) async {
     final db = await instance.database;
+    final String normalizedEmail = user['email']?.toString().trim().toLowerCase() ?? '';
+    if (normalizedEmail.isEmpty) return 0;
+
     if (db == null) {
       final prefs = await SharedPreferences.getInstance();
-      final String email = user['email']?.toString() ?? '';
-      if (email.isEmpty) return 0;
       final Map<String, dynamic> storedUsers = jsonDecode(prefs.getString('web_users') ?? '{}');
-      storedUsers[email] = {
+      storedUsers[normalizedEmail] = {
         'name': user['name']?.toString() ?? '',
-        'email': email,
+        'email': normalizedEmail,
         'phone': user['phone']?.toString() ?? '',
         'password': _hashPassword(user['password']?.toString() ?? ''),
       };
@@ -246,6 +247,7 @@ class DatabaseHelper {
     }
 
     final userToInsert = Map<String, dynamic>.from(user);
+    userToInsert['email'] = normalizedEmail;
     userToInsert['password'] = _hashPassword(userToInsert['password']?.toString() ?? '');
     return await db.insert(
       'users',
@@ -255,38 +257,40 @@ class DatabaseHelper {
   }
 
   Future<bool> loginUser(String email, String passwordHash) async {
+    final String normalizedEmail = email.trim().toLowerCase();
     final db = await instance.database;
     if (db == null) {
       final prefs = await SharedPreferences.getInstance();
       final String rawUsers = prefs.getString('web_users') ?? '{}';
       final Map<String, dynamic> storedUsers = jsonDecode(rawUsers);
-      if (!storedUsers.containsKey(email)) return false;
-      return storedUsers[email]['password'] == passwordHash;
+      if (!storedUsers.containsKey(normalizedEmail)) return false;
+      return storedUsers[normalizedEmail]['password'] == passwordHash;
     }
 
     final List<Map<String, dynamic>> maps = await db.query(
       'users',
       where: 'email = ? AND password = ?',
-      whereArgs: [email, passwordHash],
+      whereArgs: [normalizedEmail, passwordHash],
       limit: 1,
     );
     return maps.isNotEmpty;
   }
 
   Future<Map<String, dynamic>?> getUserByEmail(String email) async {
+    final String normalizedEmail = email.trim().toLowerCase();
     final db = await instance.database;
     if (db == null) {
       final prefs = await SharedPreferences.getInstance();
       final String rawUsers = prefs.getString('web_users') ?? '{}';
       final Map<String, dynamic> storedUsers = jsonDecode(rawUsers);
-      if (!storedUsers.containsKey(email)) return null;
-      return Map<String, dynamic>.from(storedUsers[email]);
+      if (!storedUsers.containsKey(normalizedEmail)) return null;
+      return Map<String, dynamic>.from(storedUsers[normalizedEmail]);
     }
 
     final List<Map<String, dynamic>> maps = await db.query(
       'users',
       where: 'email = ?',
-      whereArgs: [email],
+      whereArgs: [normalizedEmail],
       limit: 1,
     );
 
@@ -297,14 +301,15 @@ class DatabaseHelper {
   }
 
   Future<int> updatePassword(String email, String newPassword) async {
+    final String normalizedEmail = email.trim().toLowerCase();
     final hashedPassword = _hashPassword(newPassword);
     final db = await instance.database;
     if (db == null) {
       final prefs = await SharedPreferences.getInstance();
       final String rawUsers = prefs.getString('web_users') ?? '{}';
       final Map<String, dynamic> storedUsers = jsonDecode(rawUsers);
-      if (!storedUsers.containsKey(email)) return 0;
-      storedUsers[email]['password'] = hashedPassword;
+      if (!storedUsers.containsKey(normalizedEmail)) return 0;
+      storedUsers[normalizedEmail]['password'] = hashedPassword;
       await prefs.setString('web_users', jsonEncode(storedUsers));
       return 1;
     }
@@ -313,7 +318,7 @@ class DatabaseHelper {
       'users',
       {'password': hashedPassword},
       where: 'email = ?',
-      whereArgs: [email],
+      whereArgs: [normalizedEmail],
     );
   }
 
