@@ -65,6 +65,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
     try {
       final prefs = await SharedPreferences.getInstance();
+      final String? loggedEmail = prefs.getString('logged_user_email')?.trim();
+      final String newEmailNormalized = updatedData['email']!.trim().toLowerCase();
 
       if (kIsWeb) {
         // Jalur Web Browser
@@ -72,9 +74,24 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         await prefs.setString('web_profile_email', updatedData['email']!);
         await prefs.setString('web_profile_phone', updatedData['phone']!);
         await prefs.setString('web_profile_address', updatedData['address']!);
+        // Jika user sedang login di web, update juga entri web_users
+        if (loggedEmail != null && loggedEmail.isNotEmpty) {
+          await DatabaseHelper.instance.updateUserByEmail(updatedData, loggedEmail);
+          // Jika email berubah, perbarui key logged_user_email
+          if (loggedEmail.toLowerCase() != newEmailNormalized) {
+            await prefs.setString('logged_user_email', newEmailNormalized);
+          }
+        }
       } else {
         // Jalur Android Emulator SQLite Rill
         await DatabaseHelper.instance.updateUserProfile(updatedData);
+        // Jika ada akun yang sedang login, pastikan tabel users juga diperbarui
+        if (loggedEmail != null && loggedEmail.isNotEmpty) {
+          await DatabaseHelper.instance.updateUserByEmail(updatedData, loggedEmail);
+          if (loggedEmail.toLowerCase() != newEmailNormalized) {
+            await prefs.setString('logged_user_email', newEmailNormalized);
+          }
+        }
       }
 
       // SYARAT DOSEN: Update Key Ke-2 SharedPreferences (Waktu Update)

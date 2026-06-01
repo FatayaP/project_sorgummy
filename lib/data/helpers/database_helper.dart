@@ -322,6 +322,45 @@ class DatabaseHelper {
     );
   }
 
+  /// Update user record by email. If running on web (db == null), updates
+  /// the `web_users` map stored in SharedPreferences. Returns number of
+  /// affected records (1 = success, 0 = not found).
+  Future<int> updateUserByEmail(Map<String, dynamic> data, String email) async {
+    final String normalizedEmail = email.trim().toLowerCase();
+    final db = await instance.database;
+    if (db == null) {
+      final prefs = await SharedPreferences.getInstance();
+      final String rawUsers = prefs.getString('web_users') ?? '{}';
+      final Map<String, dynamic> storedUsers = jsonDecode(rawUsers);
+      if (!storedUsers.containsKey(normalizedEmail)) return 0;
+
+      final Map<String, dynamic> user = Map<String, dynamic>.from(storedUsers[normalizedEmail]);
+      // Update fields if provided
+      if (data.containsKey('name')) user['name'] = data['name']?.toString() ?? user['name'];
+      if (data.containsKey('email')) user['email'] = data['email']?.toString().trim().toLowerCase() ?? user['email'];
+      if (data.containsKey('phone')) user['phone'] = data['phone']?.toString() ?? user['phone'];
+
+      // If email changed, we need to move the key
+      final String newEmailKey = user['email'].toString().trim().toLowerCase();
+      storedUsers.remove(normalizedEmail);
+      storedUsers[newEmailKey] = user;
+      await prefs.setString('web_users', jsonEncode(storedUsers));
+      return 1;
+    }
+
+    final Map<String, dynamic> toUpdate = Map<String, dynamic>.from(data);
+    // Normalize email if present in update
+    if (toUpdate.containsKey('email')) {
+      toUpdate['email'] = toUpdate['email']?.toString().trim().toLowerCase();
+    }
+    return await db.update(
+      'users',
+      toUpdate,
+      where: 'email = ?',
+      whereArgs: [normalizedEmail],
+    );
+  }
+
   // =========================================================================
   // OPERASI CRUD TABEL PENGELOLAAN (BAWAAN TEMAN KELOMPOK)
   // =========================================================================
