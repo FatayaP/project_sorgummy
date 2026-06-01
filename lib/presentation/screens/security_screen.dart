@@ -1,6 +1,10 @@
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants/colors.dart';
+import '../../data/helpers/database_helper.dart';
+import '../../data/helpers/shared_prefs_helper.dart';
 
 class SecurityScreen extends StatefulWidget {
   const SecurityScreen({Key? key}) : super(key: key);
@@ -12,11 +16,9 @@ class SecurityScreen extends StatefulWidget {
 class _SecurityScreenState extends State<SecurityScreen> {
   final _formKey = GlobalKey<FormState>();
   
-  // Controller untuk mengambil data input teks
   final TextEditingController _oldPasswordController = TextEditingController();
   final TextEditingController _newPasswordController = TextEditingController();
 
-  // State untuk kontrol visibilitas password (mengubah ikon mata)
   bool _obscureOldPassword = true;
   bool _obscureNewPassword = true;
   bool _isLoading = false;
@@ -28,10 +30,13 @@ class _SecurityScreenState extends State<SecurityScreen> {
     super.dispose();
   }
 
-  // Fungsi Logika untuk Memperbarui Password secara rill ke Storage Perangkat
+  String _hashPassword(String password) {
+    return sha256.convert(utf8.encode(password)).toString();
+  }
+
   Future<void> _updatePassword() async {
     if (!_formKey.currentState!.validate()) {
-      return; // Batalkan jika validasi form gagal
+      return;
     }
 
     setState(() {
@@ -40,31 +45,47 @@ class _SecurityScreenState extends State<SecurityScreen> {
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      
-      // Ambil password lama rill yang tersimpan (jika belum ada, default-nya 'password123')
-      String currentSavedPassword = prefs.getString('user_password') ?? 'password123';
+      final String? currentEmail = prefs.getString('logged_user_email');
 
-      if (_oldPasswordController.text != currentSavedPassword) {
+      if (currentEmail == null || currentEmail.isEmpty) {
         if (mounted) {
-          _showSnackBar('Password lama yang Anda masukkan salah!', isError: true);
+          _showSnackBar('Tidak dapat menemukan pengguna aktif.', isError: true);
         }
-        setState(() => _isLoading = false);
         return;
       }
 
-      // Simpan password baru ke lokal
-      await prefs.setString('user_password', _newPasswordController.text);
+      final String oldPasswordHash = _hashPassword(_oldPasswordController.text.trim());
+      final bool validOldPassword = await DatabaseHelper.instance.loginUser(
+        currentEmail,
+        oldPasswordHash,
+      );
 
-      if (mounted) {
-        _showSnackBar('Password berhasil diperbarui secara permanen!');
-        // Bersihkan field setelah sukses
-        _oldPasswordController.clear();
-        _newPasswordController.clear();
-        
-        // Opsional: Tutup halaman kembali ke profil setelah 1.5 detik sukses
-        Future.delayed(const Duration(milliseconds: 1500), () {
-          if (mounted) Navigator.pop(context);
-        });
+      if (!validOldPassword) {
+        if (mounted) {
+          _showSnackBar('Password lama yang Anda masukkan salah!', isError: true);
+        }
+        return;
+      }
+
+      final int changed = await DatabaseHelper.instance.updatePassword(
+        currentEmail,
+        _newPasswordController.text.trim(),
+      );
+
+      if (changed > 0) {
+        await SharedPrefsHelper.saveActivity('Mengubah password akun');
+        if (mounted) {
+          _showSnackBar('Password berhasil diperbarui secara permanen!');
+          _oldPasswordController.clear();
+          _newPasswordController.clear();
+          Future.delayed(const Duration(milliseconds: 1500), () {
+            if (mounted) Navigator.pop(context);
+          });
+        }
+      } else {
+        if (mounted) {
+          _showSnackBar('Gagal memperbarui password. Coba lagi.', isError: true);
+        }
       }
     } catch (e) {
       if (mounted) {

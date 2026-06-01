@@ -47,15 +47,55 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _base64Image = prefs.getString('user_profile_image'); 
 
       if (kIsWeb) {
-        setState(() {
-          _userName = prefs.getString('web_profile_name') ?? 'Petani Hebat';
-          _userEmail = prefs.getString('web_profile_email') ?? 'petani@sorgummi.com';
-          _userPhone = prefs.getString('web_profile_phone') ?? '081234567890';
-          _userAddress = prefs.getString('web_profile_address') ?? 'Bandung, Jawa Barat';
-        });
+        final String? loggedEmail = prefs.getString('logged_user_email');
+        if (loggedEmail != null && loggedEmail.isNotEmpty) {
+          final storedUsers = prefs.getString('web_users') ?? '{}';
+          final Map<String, dynamic> userMap = jsonDecode(storedUsers);
+          if (userMap.containsKey(loggedEmail)) {
+            final currentUser = Map<String, dynamic>.from(userMap[loggedEmail]);
+            setState(() {
+              _userName = currentUser['name'] ?? 'Petani Hebat';
+              _userEmail = currentUser['email'] ?? 'petani@sorgummi.com';
+              _userPhone = currentUser['phone'] ?? '081234567890';
+              _userAddress = prefs.getString('web_profile_address') ?? 'Bandung, Jawa Barat';
+            });
+          } else {
+            setState(() {
+              _userName = prefs.getString('web_profile_name') ?? 'Petani Hebat';
+              _userEmail = prefs.getString('web_profile_email') ?? 'petani@sorgummi.com';
+              _userPhone = prefs.getString('web_profile_phone') ?? '081234567890';
+              _userAddress = prefs.getString('web_profile_address') ?? 'Bandung, Jawa Barat';
+            });
+          }
+        } else {
+          setState(() {
+            _userName = prefs.getString('web_profile_name') ?? 'Petani Hebat';
+            _userEmail = prefs.getString('web_profile_email') ?? 'petani@sorgummi.com';
+            _userPhone = prefs.getString('web_profile_phone') ?? '081234567890';
+            _userAddress = prefs.getString('web_profile_address') ?? 'Bandung, Jawa Barat';
+          });
+        }
       } else {
+        final String? loggedEmail = prefs.getString('logged_user_email');
         final profileMap = await DatabaseHelper.instance.getUserProfile();
-        if (profileMap != null) {
+        if (loggedEmail != null && loggedEmail.isNotEmpty) {
+          final currentUser = await DatabaseHelper.instance.getUserByEmail(loggedEmail);
+          if (currentUser != null) {
+            setState(() {
+              _userName = currentUser['name'] ?? 'Petani Hebat';
+              _userEmail = currentUser['email'] ?? 'petani@sorgummi.com';
+              _userPhone = currentUser['phone'] ?? '081234567890';
+              _userAddress = profileMap?['address'] ?? 'Bandung, Jawa Barat';
+            });
+          } else if (profileMap != null) {
+            setState(() {
+              _userName = profileMap['name'] ?? 'Petani Hebat';
+              _userEmail = profileMap['email'] ?? 'petani@sorgummi.com';
+              _userPhone = profileMap['phone'] ?? '081234567890';
+              _userAddress = profileMap['address'] ?? 'Bandung, Jawa Barat';
+            });
+          }
+        } else if (profileMap != null) {
           setState(() {
             _userName = profileMap['name'] ?? 'Petani Hebat';
             _userEmail = profileMap['email'] ?? 'petani@sorgummi.com';
@@ -192,14 +232,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _doLogout(BuildContext context) async {
     await SharedPrefsHelper.setLoggedIn(false);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('user_profile_image'); 
-    
-    // Bersihkan log aktivitas saat logout
+    await prefs.remove('user_profile_image');
+    final String? currentEmail = prefs.getString('logged_user_email');
+
+    // Bersihkan log aktivitas saat logout untuk user saat ini
     try {
-      await SharedPrefsHelper.clearActivityLogs();
+      await SharedPrefsHelper.clearActivityLogs(userEmail: currentEmail);
     } catch (e) {
       debugPrint("Gagal membersihkan riwayat aktivitas saat logout: $e");
     }
+
+    await prefs.remove('logged_user_email');
     
     if (kIsWeb) {
       await prefs.remove('web_profile_name');
