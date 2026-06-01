@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants/colors.dart';
 import '../../data/helpers/database_helper.dart';
 import '../../data/helpers/shared_prefs_helper.dart';
@@ -23,30 +24,6 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
 
   @override
-  void initState() {
-    super.initState();
-    _loadRememberMeEmail();
-  }
-
-  Future<void> _loadRememberMeEmail() async {
-    final String? savedEmail = await SharedPrefsHelper.getRememberMeEmail();
-    if (savedEmail != null && savedEmail.isNotEmpty) {
-      _emailController.text = savedEmail;
-      setState(() {
-        _rememberMe = true;
-      });
-    }
-  }
-
-  Future<void> _saveRememberMeEmail(String email) async {
-    if (_rememberMe) {
-      await SharedPrefsHelper.setRememberMeEmail(email);
-    } else {
-      await SharedPrefsHelper.clearRememberMeEmail();
-    }
-  }
-
-  @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
@@ -64,17 +41,21 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoading = true;
     });
 
-    final email = _emailController.text.trim().toLowerCase();
+    final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
     final passwordHash = _hashPassword(password);
 
     try {
-      final bool success = await DatabaseHelper.instance.loginUser(email, passwordHash);
+      final bool success = await DatabaseHelper.instance.loginUser(
+        email,
+        passwordHash,
+      );
       if (success) {
         await SharedPrefsHelper.setLoggedIn(true);
         await SharedPrefsHelper.setLoggedUserEmail(email);
-        await _saveRememberMeEmail(email);
-        await SharedPrefsHelper.saveActivity('Berhasil masuk ke dalam aplikasi');
+        await SharedPrefsHelper.saveActivity(
+          'Berhasil masuk ke dalam aplikasi',
+        );
 
         if (!mounted) return;
         Navigator.pushAndRemoveUntil(
@@ -91,9 +72,9 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Terjadi kesalahan login: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Terjadi kesalahan login: $e')));
       }
     } finally {
       if (mounted) {
@@ -139,7 +120,11 @@ class _LoginScreenState extends State<LoginScreen> {
                               color: const Color(0xFFF5F7F5),
                               borderRadius: BorderRadius.circular(20.0),
                             ),
-                            child: const Icon(Icons.security, size: 60.0, color: AppColors.primaryGreen),
+                            child: const Icon(
+                              Icons.security,
+                              size: 60.0,
+                              color: AppColors.primaryGreen,
+                            ),
                           );
                         },
                       ),
@@ -147,12 +132,21 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 12.0),
                     const Text(
                       'Login',
-                      style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: Color(0xFF1B5E20), letterSpacing: -0.5),
+                      style: TextStyle(
+                        fontSize: 30,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1B5E20),
+                        letterSpacing: -0.5,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     const Text(
                       'Please Sign in to continue.',
-                      style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.w500),
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
@@ -160,18 +154,32 @@ class _LoginScreenState extends State<LoginScreen> {
                       keyboardType: TextInputType.emailAddress,
                       decoration: InputDecoration(
                         hintText: 'Email',
-                        hintStyle: const TextStyle(color: Colors.grey, fontSize: 14),
-                        prefixIcon: const Icon(Icons.email_outlined, color: Colors.grey, size: 22),
+                        hintStyle: const TextStyle(
+                          color: Colors.grey,
+                          fontSize: 14,
+                        ),
+                        prefixIcon: const Icon(
+                          Icons.email_outlined,
+                          color: Colors.grey,
+                          size: 22,
+                        ),
                         filled: true,
                         fillColor: const Color(0xFFF5F6F9),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 14,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide.none,
+                        ),
                       ),
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
                           return 'Email wajib diisi';
                         }
-                        if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+').hasMatch(value.trim())) {
+                        if (!RegExp(
+                          r'^[^@\s]+@[^@\s]+\.[^@\s]+',
+                        ).hasMatch(value.trim())) {
                           return 'Email tidak valid';
                         }
                         return null;
@@ -183,10 +191,23 @@ class _LoginScreenState extends State<LoginScreen> {
                       obscureText: _obscurePassword,
                       decoration: InputDecoration(
                         hintText: 'Password',
-                        hintStyle: const TextStyle(color: Colors.grey, fontSize: 14),
-                        prefixIcon: const Icon(Icons.lock_outline, color: Colors.grey, size: 22),
+                        hintStyle: const TextStyle(
+                          color: Colors.grey,
+                          fontSize: 14,
+                        ),
+                        prefixIcon: const Icon(
+                          Icons.lock_outline,
+                          color: Colors.grey,
+                          size: 22,
+                        ),
                         suffixIcon: IconButton(
-                          icon: Icon(_obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: Colors.grey, size: 18),
+                          icon: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined,
+                            color: Colors.grey,
+                            size: 18,
+                          ),
                           onPressed: () {
                             setState(() {
                               _obscurePassword = !_obscurePassword;
@@ -195,8 +216,13 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         filled: true,
                         fillColor: const Color(0xFFF5F6F9),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 14,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide.none,
+                        ),
                       ),
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
@@ -213,14 +239,18 @@ class _LoginScreenState extends State<LoginScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text(
-                          'Ingat saya',
-                          style: TextStyle(color: Color(0xFF263238), fontSize: 13, fontWeight: FontWeight.w500),
+                          'Reminder me nextime',
+                          style: TextStyle(
+                            color: Color(0xFF263238),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                         Transform.scale(
                           scale: 0.75,
                           child: Switch(
                             value: _rememberMe,
-                            activeThumbColor: Colors.white,
+                            activeColor: Colors.white,
                             activeTrackColor: AppColors.primaryGreen,
                             inactiveThumbColor: Colors.white,
                             inactiveTrackColor: Colors.grey.shade300,
@@ -240,7 +270,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: FilledButton(
                         style: FilledButton.styleFrom(
                           backgroundColor: AppColors.primaryGreen,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(23.0)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(23.0),
+                          ),
                           elevation: 0,
                         ),
                         onPressed: _isLoading ? null : _doLogin,
@@ -248,9 +280,19 @@ class _LoginScreenState extends State<LoginScreen> {
                             ? const SizedBox(
                                 height: 24,
                                 width: 24,
-                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
                               )
-                            : const Text('Sign In', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white)),
+                            : const Text(
+                                'Sign In',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -259,17 +301,26 @@ class _LoginScreenState extends State<LoginScreen> {
                         onTap: () {
                           Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                            MaterialPageRoute(
+                              builder: (_) => const RegisterScreen(),
+                            ),
                           );
                         },
                         child: RichText(
                           text: const TextSpan(
-                            style: TextStyle(fontSize: 13, color: Colors.grey, fontFamily: 'sans-serif'),
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey,
+                              fontFamily: 'sans-serif',
+                            ),
                             children: [
                               TextSpan(text: "Don't have account? "),
                               TextSpan(
                                 text: 'Sign Up',
-                                style: TextStyle(color: AppColors.primaryGreen, fontWeight: FontWeight.bold),
+                                style: TextStyle(
+                                  color: AppColors.primaryGreen,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ],
                           ),

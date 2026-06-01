@@ -19,17 +19,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     {
       'title': 'Sorgummi AI',
       'subtitle': 'Edukasi & Solusi\nSorgum Berbasis AI',
-      'image': 'assets/images/sorghum_bg.png', // Gambar slide 1
+      'image': 'assets/images/sorghum_bg.png',
     },
     {
       'title': 'Pantau Budidaya',
       'subtitle': 'Manajemen Pengelolaan\nSecara Mudah & Real-Time',
-      'image': 'assets/images/sorghum_bgg.png', // Gantilah dengan gambar slide 2 Anda
+      'image': 'assets/images/banner_bg.png',
     },
     {
       'title': 'Hasil Maksimal',
       'subtitle': 'Optimalkan Kualitas Panen\nBersama Teknologi AI',
-      'image': 'assets/images/banner_bg.png', // Gantilah dengan gambar slide 3 Anda
+      'image': 'assets/images/sorghum_bgg.png',
     },
   ];
 
@@ -61,10 +61,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFFE3F2FD), 
-                    Color(0xFFF1F8E9), 
-                  ],
+                  colors: [Color(0xFFE3F2FD), Color(0xFFF1F8E9)],
                 ),
               ),
             ),
@@ -90,7 +87,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       bottom: 0,
                       left: 0,
                       right: 0,
-                      height: screenSize.height * 1, 
+                      height: screenSize.height * 1,
                       child: Image.asset(
                         currentItem['image']!, // Memanggil gambar dinamis
                         fit: BoxFit.cover,
@@ -112,7 +109,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         child: Column(
                           children: [
                             const SizedBox(height: 30.0),
-                            
+
                             // Logo Ilustrasi Tanaman Sorgum
                             Image.asset(
                               'assets/images/logo.png',
@@ -139,13 +136,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                 ),
                                 children: [
                                   TextSpan(
-                                    text: '${currentItem['title']!.split(' ')[0]} ',
-                                    style: const TextStyle(color: Color(0xFF1B5E20)), 
+                                    text:
+                                        '${currentItem['title']!.split(' ')[0]} ',
+                                    style: const TextStyle(
+                                      color: Color(0xFF1B5E20),
+                                    ),
                                   ),
-                                  if (currentItem['title']!.split(' ').length > 1)
+                                  if (currentItem['title']!.split(' ').length >
+                                      1)
                                     TextSpan(
                                       text: currentItem['title']!.split(' ')[1],
-                                      style: const TextStyle(color: Color(0xFF4CAF50)), 
+                                      style: const TextStyle(
+                                        color: Color(0xFF4CAF50),
+                                      ),
                                     ),
                                 ],
                               ),
@@ -157,10 +160,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                               currentItem['subtitle']!,
                               textAlign: TextAlign.center,
                               style: const TextStyle(
-                                  fontSize: 18.0,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF263238), 
-                                  height: 1.3,
+                                fontSize: 18.0,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF263238),
+                                height: 1.3,
                               ),
                             ),
                           ],
@@ -180,7 +183,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             right: 0,
             child: Container(
               width: double.infinity,
-              height: screenSize.height * 0.13 > 90.0 ? screenSize.height * 0.13 : 90.0,
+              height: screenSize.height * 0.13 > 90.0
+                  ? screenSize.height * 0.13
+                  : 90.0,
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: const BorderRadius.only(
@@ -189,10 +194,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.03), 
+                    color: Colors.black.withOpacity(0.03),
                     blurRadius: 15.0,
                     spreadRadius: 0.0,
-                    offset: const Offset(0, -6), 
+                    offset: const Offset(0, -6),
                   ),
                 ],
               ),
@@ -208,7 +213,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     ),
                   ),
                   const SizedBox(height: 4.0),
-                  
+
                   // Tombol Navigasi Lanjut / Mulai
                   TextButton(
                     onPressed: () {
@@ -227,9 +232,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
                     child: Text(
-                      _currentPage == _onboardingData.length - 1 ? 'Mulai' : 'Lanjut',
+                      _currentPage == _onboardingData.length - 1
+                          ? 'Mulai'
+                          : 'Lanjut',
                       style: const TextStyle(
-                        color: Color(0xFF558B2F), 
+                        color: Color(0xFF558B2F),
                         fontWeight: FontWeight.bold,
                         fontSize: 16.0,
                       ),
@@ -248,7 +255,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 150),
       margin: const EdgeInsets.symmetric(horizontal: 4.0),
-      height: 5.0, 
+      height: 5.0,
       width: isActive ? 26.0 : 12.0,
       decoration: BoxDecoration(
         color: isActive ? const Color(0xFF689F38) : const Color(0xFFCFD8DC),
