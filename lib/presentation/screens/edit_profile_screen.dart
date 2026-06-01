@@ -24,12 +24,12 @@ class EditProfileScreen extends StatefulWidget {
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
-  
+
   late TextEditingController _nameController;
   late TextEditingController _emailController;
   late TextEditingController _phoneController;
   late TextEditingController _addressController;
-  
+
   bool _isSaving = false;
 
   @override
@@ -66,7 +66,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final String? loggedEmail = prefs.getString('logged_user_email')?.trim();
-      final String newEmailNormalized = updatedData['email']!.trim().toLowerCase();
+      final String newEmailNormalized = updatedData['email']!
+          .trim()
+          .toLowerCase();
 
       if (kIsWeb) {
         // Jalur Web Browser
@@ -76,7 +78,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         await prefs.setString('web_profile_address', updatedData['address']!);
         // Jika user sedang login di web, update juga entri web_users
         if (loggedEmail != null && loggedEmail.isNotEmpty) {
-          await DatabaseHelper.instance.updateUserByEmail(updatedData, loggedEmail);
+          await DatabaseHelper.instance.updateUserByEmail(
+            updatedData,
+            loggedEmail,
+          );
           // Jika email berubah, perbarui key logged_user_email
           if (loggedEmail.toLowerCase() != newEmailNormalized) {
             await prefs.setString('logged_user_email', newEmailNormalized);
@@ -84,10 +89,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         }
       } else {
         // Jalur Android Emulator SQLite Rill
-        await DatabaseHelper.instance.updateUserProfile(updatedData);
+        final int profileUpdated = await DatabaseHelper.instance
+            .insertOrUpdateUserProfile(updatedData);
+        if (profileUpdated == 0) {
+          throw Exception('Gagal memperbarui profil lokal');
+        }
+
         // Jika ada akun yang sedang login, pastikan tabel users juga diperbarui
         if (loggedEmail != null && loggedEmail.isNotEmpty) {
-          await DatabaseHelper.instance.updateUserByEmail(updatedData, loggedEmail);
+          await DatabaseHelper.instance.updateUserByEmail(
+            updatedData,
+            loggedEmail,
+          );
           if (loggedEmail.toLowerCase() != newEmailNormalized) {
             await prefs.setString('logged_user_email', newEmailNormalized);
           }
@@ -98,15 +111,30 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       await prefs.setString('profile_last_updated', DateTime.now().toString());
 
       _showCompactTopToast('Perubahan profil berhasil disimpan!');
-      
+
       // Beri jeda 1 detik agar toast kelihatan sebelum menutup halaman
       await Future.delayed(const Duration(milliseconds: 1000));
       if (mounted) {
-        Navigator.pop(context, true); // Kembali ke halaman profil sambil memicu refresh data
+        Navigator.pop(
+          context,
+          true,
+        ); // Kembali ke halaman profil sambil memicu refresh data
       }
     } catch (e) {
       debugPrint("Gagal mengupdate profil: $e");
-      _showCompactTopToast('Terjadi kesalahan, gagal menyimpan', isError: true);
+      final String errorMessage = e.toString().toLowerCase();
+      if (errorMessage.contains('unique constraint') ||
+          errorMessage.contains('email')) {
+        _showCompactTopToast(
+          'Email sudah digunakan, gunakan email lain',
+          isError: true,
+        );
+      } else {
+        _showCompactTopToast(
+          'Terjadi kesalahan, gagal menyimpan',
+          isError: true,
+        );
+      }
     } finally {
       if (mounted) {
         setState(() => _isSaving = false);
@@ -130,33 +158,43 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 11),
               margin: const EdgeInsets.symmetric(horizontal: 32),
               decoration: BoxDecoration(
-                color: isError ? const Color(0xFFFFF2F2) : const Color(0xFFF2FDF5),
+                color: isError
+                    ? const Color(0xFFFFF2F2)
+                    : const Color(0xFFF2FDF5),
                 borderRadius: BorderRadius.circular(30),
                 border: Border.all(
-                  color: isError ? Colors.red.withOpacity(0.2) : AppColors.primaryGreen.withOpacity(0.2), 
-                  width: 1
+                  color: isError
+                      ? Colors.red.withOpacity(0.2)
+                      : AppColors.primaryGreen.withOpacity(0.2),
+                  width: 1,
                 ),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 15, offset: const Offset(0, 6)),
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 15,
+                    offset: const Offset(0, 6),
+                  ),
                 ],
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    isError ? Icons.error_rounded : Icons.check_circle_rounded, 
-                    color: isError ? Colors.redAccent : AppColors.primaryGreen, 
-                    size: 18
+                    isError ? Icons.error_rounded : Icons.check_circle_rounded,
+                    color: isError ? Colors.redAccent : AppColors.primaryGreen,
+                    size: 18,
                   ),
                   const SizedBox(width: 10),
                   Text(
-                    message, 
+                    message,
                     style: TextStyle(
-                      color: isError ? Colors.red.shade900 : const Color(0xFF1B5E20), 
-                      fontSize: 12, 
-                      fontWeight: FontWeight.w700, 
-                      letterSpacing: 0.1
-                    )
+                      color: isError
+                          ? Colors.red.shade900
+                          : const Color(0xFF1B5E20),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.1,
+                    ),
                   ),
                 ],
               ),
@@ -166,7 +204,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       ),
     );
     overlay.insert(overlayEntry);
-    Future.delayed(const Duration(milliseconds: 2200), () => overlayEntry.remove());
+    Future.delayed(
+      const Duration(milliseconds: 2200),
+      () => overlayEntry.remove(),
+    );
   }
 
   // CUSTOM WIDGET 2: Form Input Field Kustom (Syarat Komponen Nilai Dosen)
@@ -182,28 +223,48 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       children: [
         Text(
           label,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textCharcoal),
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+            color: AppColors.textCharcoal,
+          ),
         ),
         const SizedBox(height: 8),
         TextFormField(
           controller: controller,
           keyboardType: keyboardType,
           validator: validator,
-          style: const TextStyle(fontSize: 14, color: AppColors.textCharcoal, fontWeight: FontWeight.w500),
+          style: const TextStyle(
+            fontSize: 14,
+            color: AppColors.textCharcoal,
+            fontWeight: FontWeight.w500,
+          ),
           decoration: InputDecoration(
             prefixIcon: Icon(prefixIcon, color: AppColors.textLight, size: 20),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 16,
+            ),
             fillColor: Colors.white,
             filled: true,
             hintText: 'Masukkan $label Anda',
-            hintStyle: TextStyle(color: AppColors.textLight.withOpacity(0.5), fontSize: 13),
+            hintStyle: TextStyle(
+              color: AppColors.textLight.withOpacity(0.5),
+              fontSize: 13,
+            ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: AppColors.cardLightGrey, width: 1),
+              borderSide: const BorderSide(
+                color: AppColors.cardLightGrey,
+                width: 1,
+              ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: AppColors.primaryGreen, width: 1.5),
+              borderSide: const BorderSide(
+                color: AppColors.primaryGreen,
+                width: 1.5,
+              ),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
@@ -222,11 +283,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundWhite, // Di dalam Scaffold dengan benar, bebas eror!
+      backgroundColor: AppColors
+          .backgroundWhite, // Di dalam Scaffold dengan benar, bebas eror!
       appBar: AppBar(
         title: const Text(
-          'Ubah Profil', 
-          style: TextStyle(color: AppColors.textCharcoal, fontSize: 18, fontWeight: FontWeight.bold)
+          'Ubah Profil',
+          style: TextStyle(
+            color: AppColors.textCharcoal,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         backgroundColor: AppColors.backgroundWhite,
         elevation: 0,
@@ -237,9 +303,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         ),
       ),
       body: _isSaving
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primaryGreen))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.primaryGreen),
+            )
           : ScrollConfiguration(
-              behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+              behavior: ScrollConfiguration.of(
+                context,
+              ).copyWith(scrollbars: false),
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
                 padding: const EdgeInsets.all(24.0),
@@ -251,7 +321,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         controller: _nameController,
                         label: 'Nama Lengkap',
                         prefixIcon: Icons.person_outline_rounded,
-                        validator: (value) => (value == null || value.trim().isEmpty) ? 'Nama tidak boleh kosong' : null,
+                        validator: (value) =>
+                            (value == null || value.trim().isEmpty)
+                            ? 'Nama tidak boleh kosong'
+                            : null,
                       ),
                       const SizedBox(height: 20),
                       _buildInputField(
@@ -260,8 +333,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         prefixIcon: Icons.email_outlined,
                         keyboardType: TextInputType.emailAddress,
                         validator: (value) {
-                          if (value == null || value.trim().isEmpty) return 'Email tidak boleh kosong';
-                          if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value.trim())) return 'Format email salah';
+                          if (value == null || value.trim().isEmpty)
+                            return 'Email tidak boleh kosong';
+                          if (!RegExp(
+                            r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                          ).hasMatch(value.trim()))
+                            return 'Format email salah';
                           return null;
                         },
                       ),
@@ -271,17 +348,23 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         label: 'Nomor Telepon',
                         prefixIcon: Icons.phone_android_outlined,
                         keyboardType: TextInputType.phone,
-                        validator: (value) => (value == null || value.trim().isEmpty) ? 'Nomor telepon tidak boleh kosong' : null,
+                        validator: (value) =>
+                            (value == null || value.trim().isEmpty)
+                            ? 'Nomor telepon tidak boleh kosong'
+                            : null,
                       ),
                       const SizedBox(height: 20),
                       _buildInputField(
                         controller: _addressController,
                         label: 'Alamat Tempat Tinggal',
                         prefixIcon: Icons.location_on_outlined,
-                        validator: (value) => (value == null || value.trim().isEmpty) ? 'Alamat tidak boleh kosong' : null,
+                        validator: (value) =>
+                            (value == null || value.trim().isEmpty)
+                            ? 'Alamat tidak boleh kosong'
+                            : null,
                       ),
                       const SizedBox(height: 40),
-                      
+
                       // TOMBOL EKSEKUSI UTAMA (SIMPAN)
                       SizedBox(
                         width: double.infinity,
@@ -289,13 +372,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         child: FilledButton(
                           style: FilledButton.styleFrom(
                             backgroundColor: AppColors.primaryGreen,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(18),
+                            ),
                             elevation: 0,
                           ),
                           onPressed: _saveChanges,
                           child: const Text(
                             'Simpan Perubahan',
-                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                       ),

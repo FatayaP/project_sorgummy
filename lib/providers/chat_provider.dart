@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../data/helpers/shared_prefs_helper.dart';
 import '../models/chat_model.dart';
 import '../models/message_model.dart';
 import '../services/chat_service.dart';
@@ -57,6 +58,8 @@ class ChatProvider extends ChangeNotifier {
         timestamp: DateTime.now(),
       ),
     );
+
+    await SharedPrefsHelper.saveActivity('Menggunakan fitur Chat AI');
     notifyListeners();
   }
 
