@@ -1,7 +1,9 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import '../../core/constants/colors.dart';
+import '../../data/helpers/database_helper.dart';
 import 'article_detail_screen.dart';
 
 class SavedArticlesScreen extends StatefulWidget {
@@ -9,6 +11,13 @@ class SavedArticlesScreen extends StatefulWidget {
 
   @override
   State<SavedArticlesScreen> createState() => _SavedArticlesScreenState();
+}
+
+class _ThemeColors {
+  static const Color deleteBg = Color(0xFFFFF2F2); // Latar merah mawar soft estetik
+  static const Color deleteIcon = Color(0xFFEF5350);
+  static const Color textGreen = Color(0xFF1B5E20);
+  static const Color borderGreen = Color(0xFFE8F5E9);
 }
 
 class _SavedArticlesScreenState extends State<SavedArticlesScreen> {
@@ -21,144 +30,235 @@ class _SavedArticlesScreenState extends State<SavedArticlesScreen> {
     _loadSavedArticles();
   }
 
-  // Membaca list string JSON dari storage perangkat dan men-decode kembali ke Map
+  // Mengambil artikel yang pernah disimpan dari SQLite/Web
   Future<void> _loadSavedArticles() async {
-    final prefs = await SharedPreferences.getInstance();
-    final List<String> savedList = prefs.getStringList('saved_articles') ?? [];
-    
-    final List<Map<String, String>> loadedArticles = savedList.map((item) {
-      final Map<String, dynamic> decoded = jsonDecode(item);
-      return decoded.map((key, value) => MapEntry(key, value.toString()));
-    }).toList();
+    try {
+      if (kIsWeb) {
+        final prefs = await SharedPreferences.getInstance();
+        final String? webSavedJson = prefs.getString('web_saved_articles');
+        if (webSavedJson != null) {
+          final List<dynamic> decoded = jsonDecode(webSavedJson);
+          setState(() {
+            _savedArticles = decoded.map((item) => Map<String, String>.from(item)).toList();
+          });
+        }
+      } else {
+        final List<Map<String, dynamic>> rawData = await DatabaseHelper.instance.getSavedArticles();
+        setState(() {
+          _savedArticles = rawData.map((item) {
+            return {
+              'title': item['title']?.toString() ?? '',
+              'subtitle': item['subtitle']?.toString() ?? '',
+              'date': item['date']?.toString() ?? '',
+              'image': item['image']?.toString() ?? '',
+              'content': item['content']?.toString() ?? '',
+            };
+          }).toList();
+        });
+      }
+    } catch (e) {
+      debugPrint("Gagal mengambil artikel: $e");
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  // Eksekusi Hapus Artikel dengan Swipe
+  Future<void> _deleteArticle(String title, int index) async {
+    final removedItem = _savedArticles[index];
 
     setState(() {
-      _savedArticles = loadedArticles;
-      _isLoading = false;
+      _savedArticles.removeAt(index); // Hapus langsung dari UI biar responsif dan instan
     });
+
+    try {
+      if (kIsWeb) {
+        final prefs = await SharedPreferences.getInstance();
+        final String? webSavedJson = prefs.getString('web_saved_articles');
+        if (webSavedJson != null) {
+          List<dynamic> decoded = jsonDecode(webSavedJson);
+          decoded.removeWhere((item) => item['title'] == title);
+          await prefs.setString('web_saved_articles', jsonEncode(decoded));
+        }
+      } else {
+        // Hapus permanen di database SQLite berdasarkan judul uniknya
+        await DatabaseHelper.instance.deleteArticle(title);
+      }
+      _showCompactToast('Artikel berhasil dihapus');
+    } catch (e) {
+      debugPrint("Gagal menghapus dari database: $e");
+      // Balikkan item jika proses ke database gagal
+      setState(() {
+        _savedArticles.insert(index, removedItem);
+      });
+    }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return ScrollConfiguration(
-      behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
-      child: Scaffold(
-        backgroundColor: AppColors.backgroundWhite,
-        appBar: AppBar(
-          title: const Text(
-            'Artikel Tersimpan',
-            style: TextStyle(color: AppColors.textCharcoal, fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          backgroundColor: Colors.white,
-          centerTitle: true,
-          leading: const BackButton(color: AppColors.textCharcoal),
-          elevation: 0,
-          bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(1.0),
-            child: Container(color: AppColors.cardLightGrey, height: 1.0),
-          ),
-        ),
-        body: SafeArea(
-          child: _isLoading
-              ? const Center(child: CircularProgressIndicator(color: AppColors.primaryGreen))
-              : _savedArticles.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: const [
-                          Icon(Icons.bookmark_border_rounded, size: 60, color: AppColors.textLight),
-                          SizedBox(height: 12),
-                          Text(
-                            'Belum ada artikel yang disimpan',
-                            style: TextStyle(color: AppColors.textLight, fontSize: 14, fontWeight: FontWeight.w500),
-                          ),
-                        ],
-                      ),
-                    )
-                  : ListView.builder(
-                      physics: const BouncingScrollPhysics(),
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-                      itemCount: _savedArticles.length,
-                      itemBuilder: (context, index) {
-                        final data = _savedArticles[index];
-                        return _buildSavedCard(context, data);
-                      },
-                    ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSavedCard(BuildContext context, Map<String, String> data) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.cardLightGrey, width: 1),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () async {
-            // Ketika user klik kartu, pergi ke detail, dan refresh list saat kembali (jika unbookmark)
-            await Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => ArticleDetailScreen(data: data)),
-            );
-            _loadSavedArticles();
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: Row(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Image.network(
-                    data['image']!,
-                    height: 70,
-                    width: 70,
-                    fit: BoxFit.cover,
-                    errorBuilder: (c, e, s) => Container(
-                      height: 70, 
-                      width: 70, 
-                      color: Colors.green.shade50,
-                      child: const Icon(Icons.eco_rounded, color: AppColors.primaryGreen),
-                    ),
+  // Notifikasi Pil Toast Hijau Estetik khas aplikasi buatan Zahara
+  void _showCompactToast(String message) {
+    final overlay = Overlay.of(context);
+    final overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        top: MediaQuery.of(context).padding.top + 20,
+        left: 0,
+        right: 0,
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 11),
+              margin: const EdgeInsets.symmetric(horizontal: 32),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF2FDF5),
+                borderRadius: BorderRadius.circular(30),
+                border: Border.all(color: AppColors.primaryGreen.withOpacity(0.2), width: 1),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 15, offset: const Offset(0, 6)),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.check_circle_rounded, color: AppColors.primaryGreen, size: 18),
+                  const SizedBox(width: 10),
+                  Text(
+                    message,
+                    style: const TextStyle(color: _ThemeColors.textGreen, fontSize: 12, fontWeight: FontWeight.w700),
                   ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        data['title']!,
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textCharcoal),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        data['subtitle']!,
-                        style: const TextStyle(fontSize: 11, color: AppColors.textLight),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        data['date']!,
-                        style: const TextStyle(fontSize: 10, color: AppColors.primaryGreen, fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                ),
-                const Icon(Icons.chevron_right_rounded, color: AppColors.textLight),
-              ],
+                ],
+              ),
             ),
           ),
         ),
       ),
+    );
+
+    overlay.insert(overlayEntry);
+    Future.delayed(const Duration(milliseconds: 2000), () => overlayEntry.remove());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.backgroundWhite,
+      appBar: AppBar(
+        title: const Text('Artikel Tersimpan', style: TextStyle(color: AppColors.textCharcoal, fontSize: 18, fontWeight: FontWeight.bold)),
+        backgroundColor: AppColors.backgroundWhite,
+        elevation: 0,
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppColors.textCharcoal),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: AppColors.primaryGreen))
+          : _savedArticles.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.bookmark_border_rounded, size: 64, color: AppColors.textLight.withOpacity(0.4)),
+                      const SizedBox(height: 16),
+                      Text('Belum ada artikel tersimpan', style: TextStyle(fontSize: 14, color: AppColors.textLight.withOpacity(0.8), fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+                  itemCount: _savedArticles.length,
+                  itemBuilder: (context, index) {
+                    final article = _savedArticles[index];
+
+                    // IMPLEMENTASI UTAMA: SWIPE TO DELETE
+                    return Dismissible(
+                      key: Key(article['title']!),
+                      direction: DismissDirection.endToStart, // Digeser hanya dari kanan ke kiri
+                      background: Container(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        padding: const EdgeInsets.only(right: 24),
+                        alignment: Alignment.centerRight,
+                        decoration: BoxDecoration(
+                          color: _ThemeColors.deleteBg,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Icon(Icons.delete_sweep_rounded, color: _ThemeColors.deleteIcon, size: 28),
+                      ),
+                      onDismissed: (direction) => _deleteArticle(article['title']!, index),
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: AppColors.cardLightGrey),
+                          boxShadow: [
+                            BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4)),
+                          ],
+                        ),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(20),
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => ArticleDetailScreen(data: article)),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Row(
+                                children: [
+                                  // Wadah Ikon Daun Pengganti Thumbnail Gambar
+                                  Container(
+                                    width: 80,
+                                    height: 80,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF2FDF5),
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(color: _ThemeColors.borderGreen),
+                                    ),
+                                    child: const Icon(Icons.eco_rounded, color: AppColors.primaryGreen, size: 32),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          article['title']!,
+                                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textCharcoal),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          article['subtitle']!,
+                                          style: const TextStyle(fontSize: 11, color: AppColors.textLight, height: 1.4),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          article['date']!,
+                                          style: const TextStyle(fontSize: 11, color: AppColors.primaryGreen, fontWeight: FontWeight.bold),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Icon(Icons.chevron_right_rounded, color: AppColors.textLight.withOpacity(0.6), size: 20),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
     );
   }
 }
