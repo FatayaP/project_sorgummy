@@ -14,8 +14,8 @@ class DatabaseHelper {
 
   Future<Database?> get database async {
     // Jika di Web Browser, jangan inisialisasi SQFlite karena tidak didukung
-    if (kIsWeb) return null; 
-    
+    if (kIsWeb) return null;
+
     if (_database != null) return _database!;
     _database = await _initDB('pengelolaan.db');
     return _database!;
@@ -27,8 +27,8 @@ class DatabaseHelper {
 
     // Menggunakan versi 3 agar memicu onUpgrade otomatis untuk tabel saved_articles
     return await openDatabase(
-      path, 
-      version: 3, 
+      path,
+      version: 3,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -155,9 +155,10 @@ class DatabaseHelper {
     final db = await instance.database;
     if (db == null) return 0;
     return await db.insert(
-      'saved_articles', 
+      'saved_articles',
       article,
-      conflictAlgorithm: ConflictAlgorithm.replace, // Supaya jika di-bookmark lagi tidak crash melainkan di-replace
+      conflictAlgorithm: ConflictAlgorithm
+          .replace, // Supaya jika di-bookmark lagi tidak crash melainkan di-replace
     );
   }
 
@@ -184,23 +185,46 @@ class DatabaseHelper {
   // =========================================================================
   Future<Map<String, dynamic>?> getUserProfile() async {
     final db = await instance.database;
-    if (db == null) return null; 
-    
+    if (db == null) return null;
+
     final List<Map<String, dynamic>> maps = await db.query(
       'user_profile',
       where: 'id = ?',
       whereArgs: [1],
       limit: 1,
     );
-    
+
     if (maps.isNotEmpty) return maps.first;
     return null;
   }
 
   Future<int> updateUserProfile(Map<String, dynamic> data) async {
     final db = await instance.database;
-    if (db == null) return 0; 
-    return await db.update('user_profile', data, where: 'id = ?', whereArgs: [1]);
+    if (db == null) return 0;
+    return await db.update(
+      'user_profile',
+      data,
+      where: 'id = ?',
+      whereArgs: [1],
+    );
+  }
+
+  Future<int> insertUserProfile(Map<String, dynamic> data) async {
+    final db = await instance.database;
+    if (db == null) return 0;
+    return await db.insert(
+      'user_profile',
+      data,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<int> insertOrUpdateUserProfile(Map<String, dynamic> data) async {
+    final existingProfile = await getUserProfile();
+    if (existingProfile == null) {
+      return await insertUserProfile(data);
+    }
+    return await updateUserProfile(data);
   }
 
   Future<int> resetUserProfile() async {
@@ -230,12 +254,15 @@ class DatabaseHelper {
 
   Future<int> insertUser(Map<String, dynamic> user) async {
     final db = await instance.database;
-    final String normalizedEmail = user['email']?.toString().trim().toLowerCase() ?? '';
+    final String normalizedEmail =
+        user['email']?.toString().trim().toLowerCase() ?? '';
     if (normalizedEmail.isEmpty) return 0;
 
     if (db == null) {
       final prefs = await SharedPreferences.getInstance();
-      final Map<String, dynamic> storedUsers = jsonDecode(prefs.getString('web_users') ?? '{}');
+      final Map<String, dynamic> storedUsers = jsonDecode(
+        prefs.getString('web_users') ?? '{}',
+      );
       storedUsers[normalizedEmail] = {
         'name': user['name']?.toString() ?? '',
         'email': normalizedEmail,
@@ -248,7 +275,9 @@ class DatabaseHelper {
 
     final userToInsert = Map<String, dynamic>.from(user);
     userToInsert['email'] = normalizedEmail;
-    userToInsert['password'] = _hashPassword(userToInsert['password']?.toString() ?? '');
+    userToInsert['password'] = _hashPassword(
+      userToInsert['password']?.toString() ?? '',
+    );
     return await db.insert(
       'users',
       userToInsert,
@@ -334,11 +363,20 @@ class DatabaseHelper {
       final Map<String, dynamic> storedUsers = jsonDecode(rawUsers);
       if (!storedUsers.containsKey(normalizedEmail)) return 0;
 
-      final Map<String, dynamic> user = Map<String, dynamic>.from(storedUsers[normalizedEmail]);
+      final Map<String, dynamic> user = Map<String, dynamic>.from(
+        storedUsers[normalizedEmail],
+      );
       // Update fields if provided
-      if (data.containsKey('name')) user['name'] = data['name']?.toString() ?? user['name'];
-      if (data.containsKey('email')) user['email'] = data['email']?.toString().trim().toLowerCase() ?? user['email'];
-      if (data.containsKey('phone')) user['phone'] = data['phone']?.toString() ?? user['phone'];
+      if (data.containsKey('name')) {
+        user['name'] = data['name']?.toString() ?? user['name'];
+      }
+      if (data.containsKey('email')) {
+        user['email'] =
+            data['email']?.toString().trim().toLowerCase() ?? user['email'];
+      }
+      if (data.containsKey('phone')) {
+        user['phone'] = data['phone']?.toString() ?? user['phone'];
+      }
 
       // If email changed, we need to move the key
       final String newEmailKey = user['email'].toString().trim().toLowerCase();
@@ -348,11 +386,22 @@ class DatabaseHelper {
       return 1;
     }
 
-    final Map<String, dynamic> toUpdate = Map<String, dynamic>.from(data);
-    // Normalize email if present in update
-    if (toUpdate.containsKey('email')) {
-      toUpdate['email'] = toUpdate['email']?.toString().trim().toLowerCase();
+    final Map<String, dynamic> toUpdate = {};
+
+    if (data.containsKey('name')) {
+      toUpdate['name'] = data['name']?.toString() ?? '';
     }
+    if (data.containsKey('email')) {
+      toUpdate['email'] = data['email']?.toString().trim().toLowerCase() ?? '';
+    }
+    if (data.containsKey('phone')) {
+      toUpdate['phone'] = data['phone']?.toString() ?? '';
+    }
+
+    if (toUpdate.isEmpty) {
+      return 0;
+    }
+
     return await db.update(
       'users',
       toUpdate,
@@ -380,7 +429,12 @@ class DatabaseHelper {
   Future<int> update(PengelolaanItem item) async {
     final db = await instance.database;
     if (db == null) return 0;
-    return db.update('pengelolaan', item.toMap(), where: 'id = ?', whereArgs: [item.id]);
+    return db.update(
+      'pengelolaan',
+      item.toMap(),
+      where: 'id = ?',
+      whereArgs: [item.id],
+    );
   }
 
   Future<int> delete(int id) async {
