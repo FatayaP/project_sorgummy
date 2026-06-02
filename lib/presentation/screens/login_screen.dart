@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants/colors.dart';
 import '../../data/helpers/database_helper.dart';
 import '../../data/helpers/shared_prefs_helper.dart';
@@ -24,6 +23,30 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
 
   @override
+  void initState() {
+    super.initState();
+    _loadRememberMeEmail();
+  }
+
+  Future<void> _loadRememberMeEmail() async {
+    final String? savedEmail = await SharedPrefsHelper.getRememberMeEmail();
+    if (savedEmail != null && savedEmail.isNotEmpty) {
+      _emailController.text = savedEmail;
+      setState(() {
+        _rememberMe = true;
+      });
+    }
+  }
+
+  Future<void> _saveRememberMeEmail(String email) async {
+    if (_rememberMe) {
+      await SharedPrefsHelper.setRememberMeEmail(email);
+    } else {
+      await SharedPrefsHelper.clearRememberMeEmail();
+    }
+  }
+
+  @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
@@ -41,7 +64,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoading = true;
     });
 
-    final email = _emailController.text.trim();
+    final email = _emailController.text.trim().toLowerCase();
     final password = _passwordController.text.trim();
     final passwordHash = _hashPassword(password);
 
@@ -53,6 +76,8 @@ class _LoginScreenState extends State<LoginScreen> {
       if (success) {
         await SharedPrefsHelper.setLoggedIn(true);
         await SharedPrefsHelper.setLoggedUserEmail(email);
+        await SharedPrefsHelper.setFirstTime(false);
+        await _saveRememberMeEmail(email);
         await SharedPrefsHelper.saveActivity(
           'Berhasil masuk ke dalam aplikasi',
         );

@@ -9,13 +9,15 @@ Future<void> main() async {
   final bool isFirstTime = await SharedPrefsHelper.isFirstTime();
   final bool isLoggedIn = await SharedPrefsHelper.isLoggedIn();
 
+  debugPrint('APP START - isLoggedIn=$isLoggedIn, isFirstTime=$isFirstTime');
+
   runApp(
     MyApp(
-      initialScreen: isFirstTime
-          ? const OnboardingScreen()
-          : isLoggedIn
+      initialScreen: isLoggedIn
           ? const MainNavigation()
-          : const WelcomeScreen(),
+          : isFirstTime
+              ? const OnboardingScreen()
+              : const WelcomeScreen(),
     ),
   );
 }
