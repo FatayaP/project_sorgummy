@@ -8,6 +8,10 @@ class SharedPrefsHelper {
   static const String _loggedUserEmailKey = 'logged_user_email';
   static const String _rememberMeEmailKey = 'remember_me_email';
   static const String _passwordLastChangedKey = 'password_last_changed';
+  static const String aiModelPreference = 'ai_model_preference';
+  static const String aiModelModeCepat = 'cepat';
+  static const String aiModelModeInformatif = 'informatif';
+  static const String aiModelModeMendalam = 'mendalam';
 
   // --- First time flags ---
   static Future<void> setFirstTime(bool isFirstTime) async {
@@ -65,6 +69,20 @@ class SharedPrefsHelper {
   static Future<String?> getPasswordLastChanged() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_passwordLastChangedKey);
+  }
+
+  static Future<void> setAiModelPreference(String mode) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(aiModelPreference, mode);
+  }
+
+  static Future<String> getAiModelPreference() async {
+    final prefs = await SharedPreferences.getInstance();
+    final value = prefs.getString(aiModelPreference);
+    if (value == aiModelModeCepat || value == aiModelModeInformatif || value == aiModelModeMendalam) {
+      return value!;
+    }
+    return aiModelModeInformatif;
   }
 
   static String _activityKey(String userEmail) => 'activity_logs_$userEmail';

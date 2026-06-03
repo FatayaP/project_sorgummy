@@ -3,7 +3,6 @@ import '../data/helpers/shared_prefs_helper.dart';
 import '../models/chat_model.dart';
 import '../models/message_model.dart';
 import '../services/chat_service.dart';
-import '../data/helpers/shared_prefs_helper.dart';
 
 class ChatProvider extends ChangeNotifier {
   final ChatService _service = ChatService();
@@ -13,6 +12,7 @@ class ChatProvider extends ChangeNotifier {
   String? currentChatId;
   List<MessageModel> messages = [];
   bool isLoading = false;
+  String aiModelMode = SharedPrefsHelper.aiModelModeInformatif;
 
   // Temporary guest user id for local chat flow.
   // This avoids requiring Firebase auth while the app is running in web/debug mode.
@@ -34,6 +34,7 @@ class ChatProvider extends ChangeNotifier {
       messages = [];
     }
 
+    aiModelMode = await SharedPrefsHelper.getAiModelPreference();
     isLoading = false;
     notifyListeners();
   }
@@ -157,6 +158,12 @@ class ChatProvider extends ChangeNotifier {
     selectedChat = null;
     messages = [];
     await _service.clearLastSelectedChatId();
+    notifyListeners();
+  }
+
+  Future<void> setAiModelMode(String mode) async {
+    aiModelMode = mode;
+    await SharedPrefsHelper.setAiModelPreference(mode);
     notifyListeners();
   }
 }

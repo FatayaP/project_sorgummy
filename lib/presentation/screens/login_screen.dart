@@ -30,19 +30,26 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _loadRememberMeEmail() async {
     final String? savedEmail = await SharedPrefsHelper.getRememberMeEmail();
+    debugPrint('🔍 LoadRememberMeEmail: savedEmail = $savedEmail');
     if (savedEmail != null && savedEmail.isNotEmpty) {
       _emailController.text = savedEmail;
       setState(() {
         _rememberMe = true;
       });
+      debugPrint('✅ Email auto-filled dari saved data');
+    } else {
+      debugPrint('❌ Tidak ada email yang tersimpan');
     }
   }
 
   Future<void> _saveRememberMeEmail(String email) async {
+    debugPrint('💾 SaveRememberMeEmail: _rememberMe = $_rememberMe, email = $email');
     if (_rememberMe) {
       await SharedPrefsHelper.setRememberMeEmail(email);
+      debugPrint('✅ Email berhasil disimpan: $email');
     } else {
       await SharedPrefsHelper.clearRememberMeEmail();
+      debugPrint('❌ Email dihapus karena checkbox OFF');
     }
   }
 
@@ -68,12 +75,15 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = _passwordController.text.trim();
     final passwordHash = _hashPassword(password);
 
+    debugPrint('🔐 Login attempt: email=$email, checkbox=$_rememberMe');
+
     try {
       final bool success = await DatabaseHelper.instance.loginUser(
         email,
         passwordHash,
       );
       if (success) {
+        debugPrint('✅ Login BERHASIL');
         await SharedPrefsHelper.setLoggedIn(true);
         await SharedPrefsHelper.setLoggedUserEmail(email);
         await SharedPrefsHelper.setFirstTime(false);
@@ -89,6 +99,7 @@ class _LoginScreenState extends State<LoginScreen> {
           (route) => false,
         );
       } else {
+        debugPrint('❌ Login GAGAL: Email atau password salah');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Email atau password salah.')),
@@ -96,6 +107,7 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
     } catch (e) {
+      debugPrint('❌ Error login: $e');
       if (mounted) {
         ScaffoldMessenger.of(
           context,

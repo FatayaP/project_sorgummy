@@ -230,6 +230,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _doLogout(BuildContext context) async {
+    debugPrint('🚪 Logout process started');
+    
+    // Hapus session login saja
     await SharedPrefsHelper.setLoggedIn(false);
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('user_profile_image');
@@ -238,21 +241,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // Bersihkan log aktivitas saat logout untuk user saat ini
     try {
       await SharedPrefsHelper.clearActivityLogs(userEmail: currentEmail);
+      debugPrint('✅ Riwayat aktivitas dibersihkan');
     } catch (e) {
-      debugPrint("Gagal membersihkan riwayat aktivitas saat logout: $e");
+      debugPrint("⚠️ Gagal membersihkan riwayat aktivitas saat logout: $e");
     }
 
+    // Hapus session user email dan remember me
     await prefs.remove('logged_user_email');
     await SharedPrefsHelper.clearRememberMeEmail();
+    debugPrint('✅ Session dihapus (email, remember_me)');
     
-    if (kIsWeb) {
-      await prefs.remove('web_profile_name');
-      await prefs.remove('web_profile_email');
-      await prefs.remove('web_profile_phone');
-      await prefs.remove('web_profile_address');
-    } else {
-      await DatabaseHelper.instance.resetUserProfile();
-    }
+    // PENTING: JANGAN hapus data akun! Akun tetap tersimpan di database
+    // User bisa login lagi dengan email & password yang sama
+    // if (kIsWeb) {
+    //   await prefs.remove('web_profile_name');
+    //   await prefs.remove('web_profile_email');
+    //   await prefs.remove('web_profile_phone');
+    //   await prefs.remove('web_profile_address');
+    // } else {
+    //   await DatabaseHelper.instance.resetUserProfile();
+    // }
+
+    debugPrint('✅ Logout berhasil - Akun tetap tersimpan, user bisa login kembali');
 
     if (context.mounted) {
       Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const WelcomeScreen()), (route) => false);

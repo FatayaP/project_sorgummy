@@ -48,7 +48,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollToBottom();
 
     Future.delayed(const Duration(milliseconds: 600), () async {
-      final sampleReply = _buildAiReply(text);
+      final sampleReply = _buildAiReply(text, provider.aiModelMode);
       await provider.addAssistantMessage(content: sampleReply);
       _scrollToBottom();
     });
@@ -102,31 +102,28 @@ class _ChatScreenState extends State<ChatScreen> {
                           ),
                         ),
                         const SizedBox(height: 2),
-                        Row(
-                          children: [
-                            Container(
-                              width: 7,
-                              height: 7,
-                              decoration: const BoxDecoration(
-                                color: AppColors.primaryGreen,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 5),
-                            const Text(
-                              'Online',
-                              style: TextStyle(
-                                color: AppColors.textLight,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
+                        Text(
+                          'Mode Aktif: ${_modeLabel(provider.aiModelMode)}',
+                          style: const TextStyle(
+                            color: AppColors.textLight,
+                            fontSize: 11,
+                          ),
                         ),
                       ],
                     ),
                   ],
                 ),
                 actions: [
+                  IconButton(
+                    icon: const Icon(
+                      Icons.smart_toy_outlined,
+                      color: AppColors.textCharcoal,
+                    ),
+                    tooltip: 'Mode Respons AI',
+                    onPressed: () {
+                      _showAiModeDialog(context, provider);
+                    },
+                  ),
                   IconButton(
                     icon: Icon(
                       isMobile
@@ -202,24 +199,174 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  String _buildAiReply(String userMessage) {
+  void _showAiModeDialog(BuildContext context, ChatProvider provider) {
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        String selectedMode = provider.aiModelMode;
+        return AlertDialog(
+          title: const Text('Mode Respons AI'),
+          content: StatefulBuilder(
+            builder: (context, setState) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  RadioListTile<String>(
+                    title: const Text('Cepat'),
+                    subtitle: const Text('Jawaban singkat dan langsung ke inti.'),
+                    value: 'cepat',
+                    groupValue: selectedMode,
+                    onChanged: (value) async {
+                      if (value == null) return;
+                      setState(() {
+                        selectedMode = value;
+                      });
+                      await provider.setAiModelMode(value);
+                      if (context.mounted) {
+                        Navigator.of(context).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Mode respons AI berhasil diperbarui'),
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                  RadioListTile<String>(
+                    title: const Text('Informatif'),
+                    subtitle: const Text('Penjelasan seimbang dan mudah dipahami.'),
+                    value: 'informatif',
+                    groupValue: selectedMode,
+                    onChanged: (value) async {
+                      if (value == null) return;
+                      setState(() {
+                        selectedMode = value;
+                      });
+                      await provider.setAiModelMode(value);
+                      if (context.mounted) {
+                        Navigator.of(context).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Mode respons AI berhasil diperbarui'),
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                  RadioListTile<String>(
+                    title: const Text('Mendalam'),
+                    subtitle: const Text('Jawaban detail, lengkap, dan terstruktur.'),
+                    value: 'mendalam',
+                    groupValue: selectedMode,
+                    onChanged: (value) async {
+                      if (value == null) return;
+                      setState(() {
+                        selectedMode = value;
+                      });
+                      await provider.setAiModelMode(value);
+                      if (context.mounted) {
+                        Navigator.of(context).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Mode respons AI berhasil diperbarui'),
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                ],
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  String _modeLabel(String mode) {
+    if (mode == 'cepat') return 'Cepat';
+    if (mode == 'mendalam') return 'Mendalam';
+    return 'Informatif';
+  }
+
+  String _buildAiReply(String userMessage, String mode) {
     final lower = userMessage.toLowerCase();
 
     if (lower.contains('sorgum') || lower.contains('sorghum')) {
-      return 'Sorgum adalah tanaman serealia yang cocok untuk tanah kering. Jika Anda butuh tips pengelolaan, tanyakan tentang pemupukan, irigasi, atau panen.';
+      if (mode == 'cepat') {
+        return 'Sorgum adalah tanaman serealia yang cocok untuk tanah kering. Untuk penjelasan cepat, tanyakan langsung mengenai budidaya atau produk sorgum.';
+      }
+      if (mode == 'mendalam') {
+        return '''Sorgum adalah tanaman serealia yang cocok untuk tanah kering. Berikut beberapa poin penting:
+
+1. Sorgum tahan kekeringan dan cocok untuk lahan terbatas.
+2. Dapat dipakai untuk tepung, pakan ternak, dan industri makanan.
+3. Mendukung diversifikasi pangan lokal dan peluang UMKM.
+
+Tanya tentang pemupukan, irigasi, atau panen untuk detail lebih lanjut.''';
+      }
+      return 'Sorgum adalah tanaman serealia yang cocok untuk tanah kering. Jika Anda ingin informasi lebih lanjut, tanyakan tentang pemupukan, irigasi, atau panen.';
     }
+
     if (lower.contains('panen') || lower.contains('hasil')) {
+      if (mode == 'cepat') {
+        return 'Panen sorgum terbaik kalau tanaman sudah matang dan kondisi tanah stabil. Cek kelembapan dan serangan hama terlebih dahulu.';
+      }
+      if (mode == 'mendalam') {
+        return '''Untuk panen optimal:
+
+1. Pastikan bulir sorgum kering dan keras.
+2. Periksa kadar air sebelum panen.
+3. Lakukan panen pagi hari untuk mengurangi kerusakan.
+4. Simpan hasil panen di tempat kering.
+
+Langkah ini membantu menjaga kualitas dan mengurangi risiko jamur.''';
+      }
       return 'Untuk panen optimal, pastikan tanaman sudah matang sempurna dan kondisi tanah stabil. Periksa juga kandungan air dan serangan hama sebelum panen.';
     }
+
     if (lower.contains('pupuk') || lower.contains('pemupukan')) {
+      if (mode == 'cepat') {
+        return 'Pemupukan sorgum umumnya dilakukan sejak awal pertumbuhan dengan pupuk NPK seimbang. Jangan terlalu berlebihan agar pertumbuhan sehat.';
+      }
+      if (mode == 'mendalam') {
+        return '''Pemupukan sorgum biasanya dilakukan pada fase awal pertumbuhan. Pertimbangkan:
+
+1. Gunakan NPK seimbang.
+2. Berikan pupuk dasar sebelum tanam.
+3. Tambahkan pupuk susulan saat vegetatif.
+4. Hindari pemupukan berlebihan agar tidak merusak akar.
+
+Langkah ini membantu tanaman tumbuh kuat dan menghasilkan panen lebih baik.''';
+      }
       return 'Pemupukan sorgum biasanya dilakukan pada fase awal pertumbuhan. Gunakan pupuk NPK seimbang dan jangan berlebihan agar tanaman sehat.';
     }
+
     if (lower.contains('bagaimana') ||
         lower.contains('apa') ||
         lower.contains('mengapa') ||
         lower.contains('kenapa')) {
+      if (mode == 'cepat') {
+        return 'Pertanyaan Anda bagus. Saya akan memberikan jawaban singkat dan langsung sesuai topik yang Anda tanyakan.';
+      }
+      if (mode == 'mendalam') {
+        return 'Pertanyaan Anda bagus. Saya akan menjawab secara terstruktur dan mendetail. Jika perlu, saya juga bisa menyajikan poin-poin, contoh, atau langkah-langkah.';
+      }
       return 'Pertanyaan Anda bagus. Saya akan menjawab sesuai topik yang Anda tanyakan. Silakan jelaskan lebih lanjut jika ingin detail spesifik.';
     }
+
+    if (mode == 'cepat') {
+      return 'Saya menerima pesan Anda: "$userMessage". Silakan tanyakan lebih lanjut jika Anda ingin informasi cepat tentang sorgum atau budidaya.';
+    }
+
+    if (mode == 'mendalam') {
+      return '''Saya menerima pesan Anda: "$userMessage". Berikut beberapa hal yang bisa dijelaskan:
+
+1. Fokus pada topik sorgum.
+2. Sertakan contoh atau langkah bila relevan.
+3. Saya bisa menjelaskan lebih mendalam tentang budidaya, produk, atau peluang usaha.''';
+    }
+
     return 'Saya menerima pesan Anda: "$userMessage". Apa yang ingin Anda ketahui tentang sorgum atau budidaya lainnya?';
   }
 
