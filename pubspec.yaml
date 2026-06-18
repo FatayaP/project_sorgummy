@@ -1,0 +1,43 @@
+name: sorgummi_ai
+description: "A new Flutter project."
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: ^3.11.3
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  args: ^2.4.2
+  image_picker: ^1.2.1
+  shared_preferences: ^2.2.2
+  sqflite: ^2.3.0
+  path: ^1.8.3
+  intl: ^0.20.2
+  google_fonts: ^8.1.0
+  crypto: ^3.0.3      # <--- Library untuk enkripsi password Shara (WAJIB)
+  provider: ^6.0.5
+  flutter_slidable: ^4.0.3
+  share_plus: ^13.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/sorghum_bg.png
+    - assets/images/logo.png
+    - assets/images/farmer.png
+    - assets/images/banner_bg.png
+    - assets/images/sorghum_bgg.png
+    - assets/images/login.png
+    - assets/images/register.png
+    - assets/images/pemupukan.png
+    - assets/images/daun_kuning.png
+    - assets/images/persiapan_lahan.png
+    
