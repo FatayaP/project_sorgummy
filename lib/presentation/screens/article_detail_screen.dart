@@ -1,9 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb; // Pendeteksi dual mode rill
+import 'package:flutter/foundation.dart' show kIsWeb; 
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants/colors.dart';
-import '../../data/helpers/database_helper.dart'; // Import Database rill kamu
+import '../../data/helpers/database_helper.dart'; 
+import '../../data/helpers/shared_prefs_helper.dart'; 
 
 class ArticleDetailScreen extends StatefulWidget {
   final Map<String, String> data;
@@ -23,11 +24,11 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
     _checkIfSaved();
   }
 
-  // SINKRONISASI CEK DATA (SQLITE & WEB): Memeriksa status bookmark secara rill
+  // SINKRONISASI CEK DATA (SQLITE & WEB)
   Future<void> _checkIfSaved() async {
     try {
       if (kIsWeb) {
-        // Jalur Web Browser fallback
+        // Jalur Web Browser fallback via SharedPreferences
         final prefs = await SharedPreferences.getInstance();
         final String? webSavedJson = prefs.getString('web_saved_articles');
         if (webSavedJson != null) {
@@ -39,7 +40,7 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
           }
         }
       } else {
-        // Jalur Rill Emulator Android SQLite
+        // Jalur Rill Emulator Android menggunakan fungsi SQLite bawaan kelompokmu
         final List<Map<String, dynamic>> savedArticles = await DatabaseHelper.instance.getSavedArticles();
         if (mounted) {
           setState(() {
@@ -52,19 +53,19 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
     }
   }
 
-  // SINKRONISASI TOGGLE CRUD (CREATE & DELETE): Menyimpan atau menghapus rill dari SQLite/Web
+  // SINKRONISASI TOGGLE CRUD (CREATE & DELETE)
   Future<void> _toggleSaveArticle() async {
     final Map<String, dynamic> articleData = {
       'title': widget.data['title'] ?? '',
-      'subtitle': widget.data['subtitle'] ?? '',
+      'subtitle': widget.data['subtitle'] ?? '', 
       'date': widget.data['date'] ?? '',
-      'image': widget.data['image'] ?? '',
+      'image': widget.data['image'] ?? '', 
       'content': widget.data['content'] ?? '',
     };
 
     try {
       if (kIsWeb) {
-        // === JALUR UTAMA UNTUK WEB CHROME ===
+        // === JALUR UNTUK WEB CHROME ===
         final prefs = await SharedPreferences.getInstance();
         final String? webSavedJson = prefs.getString('web_saved_articles');
         List<dynamic> savedList = webSavedJson != null ? jsonDecode(webSavedJson) : [];
@@ -72,24 +73,28 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
         if (_isSaved) {
           savedList.removeWhere((item) => item['title'] == widget.data['title']);
           await prefs.setString('web_saved_articles', jsonEncode(savedList));
+          await SharedPrefsHelper.saveActivity('User menghapus bookmark artikel: ${widget.data['title']}');
           setState(() => _isSaved = false);
           _showCompactTopToast('Artikel dihapus dari simpanan', isError: true);
         } else {
           savedList.add(articleData);
           await prefs.setString('web_saved_articles', jsonEncode(savedList));
+          await SharedPrefsHelper.saveActivity('User menyimpan artikel baru: ${widget.data['title']}');
           setState(() => _isSaved = true);
           _showCompactTopToast('Artikel disimpan ke profil!');
         }
       } else {
         // === JALUR RILL UNTUK EMULATOR ANDROID SQLITE ===
         if (_isSaved) {
-          // Operasi DELETE SQLite rill berdasarkan judul uniknya
+          // Operasi DELETE SQLite rill berdasarkan JUDUL (Mencegah eror int!)
           await DatabaseHelper.instance.deleteArticle(widget.data['title']!);
+          await SharedPrefsHelper.saveActivity('User menghapus artikel dari database: ${widget.data['title']}');
           setState(() => _isSaved = false);
           _showCompactTopToast('Artikel dihapus dari simpanan', isError: true);
         } else {
           // Operasi CREATE/INSERT SQLite rill
           await DatabaseHelper.instance.insertArticle(articleData);
+          await SharedPrefsHelper.saveActivity('User menambahkan artikel baru ke database: ${widget.data['title']}');
           setState(() => _isSaved = true);
           _showCompactTopToast('Artikel disimpan ke profil!');
         }

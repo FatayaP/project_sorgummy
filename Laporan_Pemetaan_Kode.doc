@@ -1,0 +1,145 @@
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:w="urn:schemas-microsoft-com:office:word"
+      xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="utf-8">
+<title>Laporan Pemetaan Kode: Fitur Admin Portal Sorgummi AI</title>
+<style>
+  body { font-family: Calibri, sans-serif; }
+  table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+  th, td { border: 1px solid #000; padding: 8px; text-align: left; }
+  th { background-color: #f2f2f2; }
+  h1, h2 { color: #2E7D32; }
+  .code { font-family: Consolas, monospace; background-color: #f4f4f4; padding: 10px; border-radius: 5px; }
+  .note { background-color: #e7f3fe; border-left: 6px solid #2196F3; padding: 10px; margin-bottom: 15px; }
+  .tip { background-color: #e7fef0; border-left: 6px solid #4CAF50; padding: 10px; margin-bottom: 15px; }
+</style>
+</head>
+<body>
+
+<h1>Laporan Pemetaan Kode: Fitur Admin Portal Sorgummi AI</h1>
+<p>Berikut adalah rincian lengkap mengenai komponen tingkat lanjut yang berhasil diimplementasikan di proyek Anda, mencakup <b>Custom Widget</b>, <b>Gesture</b>, dan <b>Library Pihak Ketiga</b>.</p>
+
+<hr>
+
+<h2>1. Custom Widget</h2>
+<table>
+  <tr>
+    <th>Nama Class</th>
+    <th>Lokasi File & Baris</th>
+    <th>Fungsi di Halaman Admin</th>
+  </tr>
+  <tr>
+    <td><b><code>AdminMultiSectionForm</code></b></td>
+    <td>admin_multi_section_form.dart (Baris 6)</td>
+    <td>Mengelola form input bertingkat (Info Dasar, Langkah, Thumbnail) agar tidak menumpuk di file utama. Widget ini mengelola state text controllers dan mengumpulkan input menjadi <code>Map&lt;String, dynamic&gt;</code>.</td>
+  </tr>
+  <tr>
+    <td><b><code>SorgumStatusBadge</code></b></td>
+    <td>sorgum_status_badge.dart (Baris 3)</td>
+    <td>Mengubah teks status ('Active' atau 'Draft') secara otomatis menjadi badge visual dengan background estetik (Hijau untuk aktif, Abu-abu untuk draft).</td>
+  </tr>
+</table>
+
+<div class="note">
+  <b>Catatan Kode:</b><br>
+  <b>AdminMultiSectionForm:</b>
+  <div class="code">
+class AdminMultiSectionForm extends StatefulWidget {<br>
+&nbsp;&nbsp;final Map&lt;String, dynamic&gt;? initialData;<br>
+&nbsp;&nbsp;final bool isSaving;<br>
+&nbsp;&nbsp;final ValueChanged&lt;Map&lt;String, dynamic&gt;&gt; onSave;<br>
+// ...
+  </div>
+  <br>
+  <b>SorgumStatusBadge:</b>
+  <div class="code">
+class SorgumStatusBadge extends StatelessWidget {<br>
+&nbsp;&nbsp;final String status;<br>
+&nbsp;&nbsp;const SorgumStatusBadge({Key? key, required this.status}) : super(key: key);<br>
+// ...
+  </div>
+</div>
+
+<hr>
+
+<h2>2. Gesture (Interaksi Sentuhan)</h2>
+<table>
+  <tr>
+    <th>Nama Widget Gesture</th>
+    <th>Lokasi File & Baris</th>
+    <th>Fungsi & Pemicu Aksi</th>
+  </tr>
+  <tr>
+    <td><b><code>InkWell</code></b></td>
+    <td>admin_multi_section_form.dart (Baris 350)</td>
+    <td>Membungkus area Media Thumbnail ("KLIK UNTUK UPLOAD THUMBNAIL"). Saat ditekan, memicu aksi <code>_pickThumbnail</code> dan memberikan feedback visual berupa efek riak (ripple effect) berwarna hijau.</td>
+  </tr>
+</table>
+
+<div class="tip">
+  <b>Cuplikan Kode InkWell:</b>
+  <div class="code">
+Material(<br>
+&nbsp;&nbsp;color: Colors.transparent,<br>
+&nbsp;&nbsp;child: InkWell(<br>
+&nbsp;&nbsp;&nbsp;&nbsp;onTap: _pickThumbnail,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;borderRadius: BorderRadius.circular(16),<br>
+&nbsp;&nbsp;&nbsp;&nbsp;splashColor: accentColor.withOpacity(0.2),<br>
+&nbsp;&nbsp;&nbsp;&nbsp;highlightColor: accentColor.withOpacity(0.1),<br>
+&nbsp;&nbsp;&nbsp;&nbsp;child: AnimatedContainer( ... ),<br>
+&nbsp;&nbsp;),<br>
+)
+  </div>
+</div>
+
+<hr>
+
+<h2>3. Library Pihak Ketiga</h2>
+<table>
+  <tr>
+    <th>Nama Library</th>
+    <th>Lokasi Dipanggil & Baris</th>
+    <th>Fungsi di Portal Admin</th>
+  </tr>
+  <tr>
+    <td><b><code>fl_chart</code></b></td>
+    <td>- activity_line_chart.dart (Baris 1)<br>- category_bar_chart.dart (Baris 1)</td>
+    <td>Menggambar grafik visual yang menarik di Halaman Dashboard. <code>ActivityLineChart</code> untuk grafik garis yang melengkung dan <code>CategoryBarChart</code> untuk grafik batang vertikal.</td>
+  </tr>
+  <tr>
+    <td><b><code>shared_preferences</code></b></td>
+    <td>admin_dashboard_page.dart (Baris 2 & 108)</td>
+    <td>Memeriksa apakah data otentikasi lokal menunjukkan <code>user_role</code> bernilai <code>'admin'</code>. Jika bukan admin, halaman tidak dirender dan otomatis mengalihkan user ke WelcomeScreen.</td>
+  </tr>
+</table>
+
+<div class="note">
+  <b>Cuplikan Kode Library:</b><br>
+  <b>shared_preferences:</b>
+  <div class="code">
+Future&lt;void&gt; _checkAdminRole() async {<br>
+&nbsp;&nbsp;final prefs = await SharedPreferences.getInstance();<br>
+&nbsp;&nbsp;final role = prefs.getString('user_role');<br>
+&nbsp;&nbsp;if (role != 'admin') {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;if (mounted) Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const WelcomeScreen()));<br>
+&nbsp;&nbsp;} else {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;if (mounted) setState(() => _isLoading = false);<br>
+&nbsp;&nbsp;}<br>
+}
+  </div>
+  <br>
+  <b>fl_chart:</b>
+  <div class="code">
+return BarChart(<br>
+&nbsp;&nbsp;BarChartData(<br>
+&nbsp;&nbsp;&nbsp;&nbsp;alignment: BarChartAlignment.spaceAround,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;maxY: 1.0,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;barGroups: [ ... ],<br>
+&nbsp;&nbsp;),<br>
+);
+  </div>
+</div>
+
+</body>
+</html>

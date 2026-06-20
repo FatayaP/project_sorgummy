@@ -10,11 +10,15 @@ import 'welcome_screen.dart';
 
 import 'edit_profile_screen.dart';
 import 'saved_articles_screen.dart';
-import 'activity_log_screen.dart'; // Import Halaman Aktivitas Baru
+import 'activity_log_screen.dart'; 
 import 'notification_settings_screen.dart';
 import 'security_screen.dart';
 import 'help_center_screen.dart';
 import 'about_screen.dart';
+
+// FIX PATH IMPORT: Sudah disesuaikan rill dengan nama project kelompokmu 'sorgummi_ai'
+import 'package:sorgummi_ai/admin/manage_articles_screen.dart';
+import 'package:sorgummi_ai/admin/sorgum_management_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -113,7 +117,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // TRIGGER LOG: Saat user ganti foto profil
   Future<void> _pickImage() async {
     Navigator.pop(context);
     final XFile? selectedImage = await _picker.pickImage(source: ImageSource.gallery);
@@ -124,7 +127,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('user_profile_image', base64String); 
       
-      // Catat aktivitas: memperbarui foto profil
       try {
         await SharedPrefsHelper.saveActivity('Memperbarui foto profil akun');
       } catch (e) {
@@ -138,7 +140,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // TRIGGER LOG: Saat user hapus foto profil
   Future<void> _deleteImage() async {
     Navigator.pop(context);
     if (_base64Image == null || _base64Image!.isEmpty) {
@@ -149,7 +150,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('user_profile_image');
     
-    // Catat aktivitas: menghapus foto profil
     try {
       await SharedPrefsHelper.saveActivity('Menghapus foto profil akun');
     } catch (e) {
@@ -220,25 +220,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // REFRESH SAAT KEMBALI DARI HALAMAN ARTIKEL TERSIMPAN
-  Future<void> _navigateToSavedArticles() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const SavedArticlesScreen()),
-    );
-    _loadAllProfileData(); 
-  }
-
   void _doLogout(BuildContext context) async {
     debugPrint('🚪 Logout process started');
     
-    // Hapus session login saja
     await SharedPrefsHelper.setLoggedIn(false);
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('user_profile_image');
     final String? currentEmail = prefs.getString('logged_user_email');
 
-    // Bersihkan log aktivitas saat logout untuk user saat ini
     try {
       await SharedPrefsHelper.clearActivityLogs(userEmail: currentEmail);
       debugPrint('✅ Riwayat aktivitas dibersihkan');
@@ -246,22 +235,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       debugPrint("⚠️ Gagal membersihkan riwayat aktivitas saat logout: $e");
     }
 
-    // Hapus session user email dan remember me
     await prefs.remove('logged_user_email');
     await SharedPrefsHelper.clearRememberMeEmail();
     debugPrint('✅ Session dihapus (email, remember_me)');
-    
-    // PENTING: JANGAN hapus data akun! Akun tetap tersimpan di database
-    // User bisa login lagi dengan email & password yang sama
-    // if (kIsWeb) {
-    //   await prefs.remove('web_profile_name');
-    //   await prefs.remove('web_profile_email');
-    //   await prefs.remove('web_profile_phone');
-    //   await prefs.remove('web_profile_address');
-    // } else {
-    //   await DatabaseHelper.instance.resetUserProfile();
-    // }
-
     debugPrint('✅ Logout berhasil - Akun tetap tersimpan, user bisa login kembali');
 
     if (context.mounted) {
@@ -370,8 +346,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ),
                       const SizedBox(height: 32),
+
+                      // ==================== COUPLING MENU PANEL ADMIN DINAMIS ====================
+                      if (_userEmail.contains('admin')) ...[
+                        _buildMenuSection(
+                          context: context,
+                          title: 'Panel Pengendalian Admin (Zahara CRUD Master)',
+                          items: [
+                            _MenuData(
+                              icon: Icons.article_rounded, 
+                              title: 'Kelola Master Artikel Edukasi', 
+                              destination: const ManageArticlesScreen()
+                            ),
+                            _MenuData(
+                              icon: Icons.agriculture_rounded, 
+                              title: 'Kelola Stok & Hasil Panen', 
+                              destination: const SorgumManagementScreen()
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+                      ],
                       
-                      // SECTION: PENGATURAN AKUN
+                      // SECTION: PENGATURAN AKUN (Bawaan Petani)
                       _buildMenuSection(
                         context: context,
                         title: 'Pengaturan Akun',

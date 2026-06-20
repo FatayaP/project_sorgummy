@@ -6,6 +6,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:crypto/crypto.dart';
 import '../models/pengelolaan_item.dart';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Key SharedPreferences untuk web fallback (kIsWeb = true)
+// ─────────────────────────────────────────────────────────────────────────────
+const String _kWebEdukasiKey      = 'web_table_edukasi';
+const String _kWebPengelolaanKey  = 'web_table_pengelolaan';
+
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
   static Database? _database;
@@ -25,10 +31,10 @@ class DatabaseHelper {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
 
-    // Menggunakan versi 3 agar memicu onUpgrade otomatis untuk tabel saved_articles
+    // Versi 6: field artikel diperluas (masalah, langkah_solusi, thumbnail, dll)
     return await openDatabase(
       path,
-      version: 3,
+      version: 6,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -79,6 +85,48 @@ class DatabaseHelper {
         email TEXT NOT NULL UNIQUE,
         phone $textType,
         password $textType
+      )
+    ''');
+
+    // 5. Tabel Edukasi Admin — skema lengkap versi 6
+    await db.execute('''
+      CREATE TABLE table_edukasi (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        judul           TEXT NOT NULL DEFAULT '',
+        kategori        TEXT NOT NULL DEFAULT '',
+        status          TEXT NOT NULL DEFAULT 'Active',
+        estimasi_baca   TEXT NOT NULL DEFAULT '',
+        badge           TEXT NOT NULL DEFAULT '',
+        judul_langkah   TEXT NOT NULL DEFAULT '',
+        masalah         TEXT NOT NULL DEFAULT '',
+        penyebab        TEXT NOT NULL DEFAULT '',
+        langkah_solusi  TEXT NOT NULL DEFAULT '[]',
+        tips_ahli       TEXT NOT NULL DEFAULT '',
+        konten          TEXT NOT NULL DEFAULT '',
+        thumbnail       TEXT NOT NULL DEFAULT '',
+        views           INTEGER NOT NULL DEFAULT 0,
+        tanggal         TEXT NOT NULL DEFAULT ''
+      )
+    ''');
+
+    // 6. Tabel Pengelolaan Admin — skema lengkap versi 6
+    await db.execute('''
+      CREATE TABLE table_pengelolaan (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        judul           TEXT NOT NULL DEFAULT '',
+        kategori        TEXT NOT NULL DEFAULT '',
+        status          TEXT NOT NULL DEFAULT 'Active',
+        estimasi_baca   TEXT NOT NULL DEFAULT '',
+        badge           TEXT NOT NULL DEFAULT '',
+        judul_langkah   TEXT NOT NULL DEFAULT '',
+        masalah         TEXT NOT NULL DEFAULT '',
+        penyebab        TEXT NOT NULL DEFAULT '',
+        langkah_solusi  TEXT NOT NULL DEFAULT '[]',
+        tips_ahli       TEXT NOT NULL DEFAULT '',
+        konten          TEXT NOT NULL DEFAULT '',
+        thumbnail       TEXT NOT NULL DEFAULT '',
+        views           INTEGER NOT NULL DEFAULT 0,
+        tanggal         TEXT NOT NULL DEFAULT ''
       )
     ''');
 
@@ -143,6 +191,47 @@ class DatabaseHelper {
           password $textType
         )
       ''');
+    }
+
+    // ── Versi 5: tabel baru untuk admin CRUD ─────────────────────────────
+    if (oldVersion < 5) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS table_edukasi (
+          id       $idType,
+          judul    $textType,
+          kategori $textType,
+          konten   $textType,
+          views    INTEGER NOT NULL DEFAULT 0,
+          status   TEXT NOT NULL DEFAULT 'Aktif',
+          tanggal  $textType
+        )
+      ''');
+
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS table_pengelolaan (
+          id       $idType,
+          judul    $textType,
+          kategori $textType,
+          konten   $textType,
+          views    INTEGER NOT NULL DEFAULT 0,
+          status   TEXT NOT NULL DEFAULT 'Aktif',
+          tanggal  $textType
+        )
+      ''');
+    }
+
+    // ── Versi 6: kolom baru untuk form artikel kaya field ───────────────
+    if (oldVersion < 6) {
+      for (final table in ['table_edukasi', 'table_pengelolaan']) {
+        await db.execute("ALTER TABLE $table ADD COLUMN estimasi_baca TEXT NOT NULL DEFAULT ''");
+        await db.execute("ALTER TABLE $table ADD COLUMN badge TEXT NOT NULL DEFAULT ''");
+        await db.execute("ALTER TABLE $table ADD COLUMN judul_langkah TEXT NOT NULL DEFAULT ''");
+        await db.execute("ALTER TABLE $table ADD COLUMN masalah TEXT NOT NULL DEFAULT ''");
+        await db.execute("ALTER TABLE $table ADD COLUMN penyebab TEXT NOT NULL DEFAULT ''");
+        await db.execute("ALTER TABLE $table ADD COLUMN langkah_solusi TEXT NOT NULL DEFAULT '[]'");
+        await db.execute("ALTER TABLE $table ADD COLUMN tips_ahli TEXT NOT NULL DEFAULT ''");
+        await db.execute("ALTER TABLE $table ADD COLUMN thumbnail TEXT NOT NULL DEFAULT ''");
+      }
     }
   }
 
@@ -441,5 +530,139 @@ class DatabaseHelper {
     final db = await instance.database;
     if (db == null) return 0;
     return await db.delete('pengelolaan', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ===========================================================================
+  // CRUD TABLE_EDUKASI  (Admin → dibaca juga oleh sisi User)
+  // ===========================================================================
+
+  /// INSERT: Simpan artikel edukasi baru ke SQLite.
+  /// Di web (kIsWeb), data disimpan sebagai JSON list di SharedPreferences.
+  Future<int> insertEdukasi(Map<String, dynamic> row) async {
+    final db = await instance.database;
+    if (db == null) {
+      // Web fallback
+      final prefs = await SharedPreferences.getInstance();
+      final List<dynamic> list = jsonDecode(prefs.getString(_kWebEdukasiKey) ?? '[]');
+      final int newId = list.isEmpty ? 1 : (list.last['id'] as int) + 1;
+      list.add({...row, 'id': newId});
+      await prefs.setString(_kWebEdukasiKey, jsonEncode(list));
+      return newId;
+    }
+    return await db.insert('table_edukasi', row,
+        conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  /// READ: Ambil semua artikel edukasi, diurutkan terbaru di atas.
+  Future<List<Map<String, dynamic>>> queryAllEdukasi() async {
+    final db = await instance.database;
+    if (db == null) {
+      final prefs = await SharedPreferences.getInstance();
+      final List<dynamic> list = jsonDecode(prefs.getString(_kWebEdukasiKey) ?? '[]');
+      return list.reversed
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+    }
+    return await db.query('table_edukasi', orderBy: 'id DESC');
+  }
+
+  /// UPDATE: Perbarui artikel edukasi berdasarkan id.
+  Future<int> updateEdukasi(Map<String, dynamic> row) async {
+    final db = await instance.database;
+    if (db == null) {
+      final prefs = await SharedPreferences.getInstance();
+      final List<dynamic> list = jsonDecode(prefs.getString(_kWebEdukasiKey) ?? '[]');
+      final int idx = list.indexWhere((e) => e['id'] == row['id']);
+      if (idx == -1) return 0;
+      list[idx] = row;
+      await prefs.setString(_kWebEdukasiKey, jsonEncode(list));
+      return 1;
+    }
+    return await db.update(
+      'table_edukasi',
+      row,
+      where: 'id = ?',
+      whereArgs: [row['id']],
+    );
+  }
+
+  /// DELETE: Hapus artikel edukasi berdasarkan id.
+  Future<int> deleteEdukasi(int id) async {
+    final db = await instance.database;
+    if (db == null) {
+      final prefs = await SharedPreferences.getInstance();
+      final List<dynamic> list = jsonDecode(prefs.getString(_kWebEdukasiKey) ?? '[]');
+      final int before = list.length;
+      list.removeWhere((e) => e['id'] == id);
+      await prefs.setString(_kWebEdukasiKey, jsonEncode(list));
+      return before - list.length; // 1 jika berhasil dihapus
+    }
+    return await db.delete('table_edukasi', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ===========================================================================
+  // CRUD TABLE_PENGELOLAAN  (Admin → dibaca juga oleh sisi User)
+  // ===========================================================================
+
+  /// INSERT: Simpan panduan pengelolaan baru ke SQLite.
+  Future<int> insertPengelolaanAdmin(Map<String, dynamic> row) async {
+    final db = await instance.database;
+    if (db == null) {
+      final prefs = await SharedPreferences.getInstance();
+      final List<dynamic> list = jsonDecode(prefs.getString(_kWebPengelolaanKey) ?? '[]');
+      final int newId = list.isEmpty ? 1 : (list.last['id'] as int) + 1;
+      list.add({...row, 'id': newId});
+      await prefs.setString(_kWebPengelolaanKey, jsonEncode(list));
+      return newId;
+    }
+    return await db.insert('table_pengelolaan', row,
+        conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  /// READ: Ambil semua panduan pengelolaan, terbaru di atas.
+  Future<List<Map<String, dynamic>>> queryAllPengelolaanAdmin() async {
+    final db = await instance.database;
+    if (db == null) {
+      final prefs = await SharedPreferences.getInstance();
+      final List<dynamic> list = jsonDecode(prefs.getString(_kWebPengelolaanKey) ?? '[]');
+      return list.reversed
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+    }
+    return await db.query('table_pengelolaan', orderBy: 'id DESC');
+  }
+
+  /// UPDATE: Perbarui panduan pengelolaan berdasarkan id.
+  Future<int> updatePengelolaanAdmin(Map<String, dynamic> row) async {
+    final db = await instance.database;
+    if (db == null) {
+      final prefs = await SharedPreferences.getInstance();
+      final List<dynamic> list = jsonDecode(prefs.getString(_kWebPengelolaanKey) ?? '[]');
+      final int idx = list.indexWhere((e) => e['id'] == row['id']);
+      if (idx == -1) return 0;
+      list[idx] = row;
+      await prefs.setString(_kWebPengelolaanKey, jsonEncode(list));
+      return 1;
+    }
+    return await db.update(
+      'table_pengelolaan',
+      row,
+      where: 'id = ?',
+      whereArgs: [row['id']],
+    );
+  }
+
+  /// DELETE: Hapus panduan pengelolaan berdasarkan id.
+  Future<int> deletePengelolaanAdmin(int id) async {
+    final db = await instance.database;
+    if (db == null) {
+      final prefs = await SharedPreferences.getInstance();
+      final List<dynamic> list = jsonDecode(prefs.getString(_kWebPengelolaanKey) ?? '[]');
+      final int before = list.length;
+      list.removeWhere((e) => e['id'] == id);
+      await prefs.setString(_kWebPengelolaanKey, jsonEncode(list));
+      return before - list.length;
+    }
+    return await db.delete('table_pengelolaan', where: 'id = ?', whereArgs: [id]);
   }
 }

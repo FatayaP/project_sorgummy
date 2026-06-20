@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants/colors.dart';
 import '../../data/helpers/database_helper.dart';
 import '../../data/helpers/shared_prefs_helper.dart';
+import '../../admin/admin_dashboard_page.dart';
 import 'main_navigation.dart';
 import 'register_screen.dart';
 
@@ -64,33 +66,106 @@ class _LoginScreenState extends State<LoginScreen> {
     return sha256.convert(utf8.encode(password)).toString();
   }
 
+  // ════════════════════════════════════════════════════════════════════════════
+  // KREDENSIAL ADMIN — jangan ada spasi tersembunyi di antara tanda kutip!
+  // ════════════════════════════════════════════════════════════════════════════
+  static const String _kAdminEmail    = 'admin123@gmail.com';
+  static const String _kAdminPassword = 'admin123';
+
+  // ─── Helper: apakah input cocok dengan kredensial admin? ────────────────────
+  bool _isAdminCredential(String email, String password) {
+    // .trim() di KEDUA sisi: input user & konstanta — 100% aman dari spasi
+    final inputEmail    = email.trim().toLowerCase();
+    final inputPassword = password.trim();
+    final targetEmail   = _kAdminEmail.trim().toLowerCase();
+    final targetPass    = _kAdminPassword.trim();
+
+    // Debug diagnostik — lihat di konsol Flutter untuk memastikan nilai cocok
+    debugPrint('╔══ ADMIN CHECK ══════════════════════════════');
+    debugPrint('║  inputEmail    : "$inputEmail"   (len=${inputEmail.length})');
+    debugPrint('║  targetEmail   : "$targetEmail" (len=${targetEmail.length})');
+    debugPrint('║  emailMatch    : ${inputEmail == targetEmail}');
+    debugPrint('║  inputPassword : "$inputPassword" (len=${inputPassword.length})');
+    debugPrint('║  targetPass    : "$targetPass"  (len=${targetPass.length})');
+    debugPrint('║  passMatch     : ${inputPassword == targetPass}');
+    debugPrint('╚═════════════════════════════════════════════');
+
+    return inputEmail == targetEmail && inputPassword == targetPass;
+  }
+
+  // ─── Fungsi utama login — dipanggil oleh onPressed tombol Sign In ───────────
   Future<void> _doLogin() async {
+    // 1. Validasi form (field kosong / format email salah)
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
-    final email = _emailController.text.trim().toLowerCase();
-    final password = _passwordController.text.trim();
-    final passwordHash = _hashPassword(password);
+    // 2. Ambil nilai input — .trim() mencegah spasi tersembunyi
+    final String emailInput    = _emailController.text.trim();
+    final String passwordInput = _passwordController.text.trim();
 
-    debugPrint('🔐 Login attempt: email=$email, checkbox=$_rememberMe');
+    debugPrint('🔐 Sign In ditekan — email="$emailInput", rememberMe=$_rememberMe');
 
     try {
+      // ════════════════════════════════════════════════════════════════════════
+      // GERBANG PERTAMA ▸ CEK ADMIN (selalu diperiksa paling awal)
+      // ════════════════════════════════════════════════════════════════════════
+      if (_isAdminCredential(emailInput, passwordInput)) {
+        debugPrint('🛡️  ADMIN TERDETEKSI — Memproses sesi admin...');
+
+        final prefs = await SharedPreferences.getInstance();
+
+        // Simpan role & status sesi
+        await prefs.setString('user_role', 'admin');
+        await prefs.setBool('is_logged_in', true);
+        await SharedPrefsHelper.setLoggedUserEmail(_kAdminEmail);
+
+        // Reminder me nexttime: simpan / hapus email sesuai posisi switch
+        if (_rememberMe) {
+          await SharedPrefsHelper.setRememberMeEmail(_kAdminEmail);
+          debugPrint('💾 Remember-me: email admin disimpan');
+        } else {
+          await SharedPrefsHelper.clearRememberMeEmail();
+          debugPrint('🗑️  Remember-me: email admin dihapus');
+        }
+
+        await SharedPrefsHelper.saveActivity('Admin berhasil masuk ke panel admin');
+
+        if (!mounted) return;
+
+        // Navigasi ke Admin Dashboard — hapus semua route sebelumnya
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const AdminDashboardPage()),
+          (route) => false,
+        );
+
+        return; // ← WAJIB: hentikan di sini, jangan lanjut ke blok user biasa
+      }
+
+      // ════════════════════════════════════════════════════════════════════════
+      // GERBANG KEDUA ▸ LOGIN USER BIASA via Database
+      // ════════════════════════════════════════════════════════════════════════
+      debugPrint('👤 Bukan admin — mencoba login user biasa...');
+
+      // TODO: Login User Biasa
+      final String passwordHash = _hashPassword(passwordInput);
       final bool success = await DatabaseHelper.instance.loginUser(
-        email,
+        emailInput.toLowerCase(), // normalisasi email sebelum query DB
         passwordHash,
       );
+
       if (success) {
-        debugPrint('✅ Login BERHASIL');
+        debugPrint('✅ Login user biasa BERHASIL');
+
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('user_role', 'user');
+        await prefs.setBool('is_logged_in', true);
         await SharedPrefsHelper.setLoggedIn(true);
-        await SharedPrefsHelper.setLoggedUserEmail(email);
+        await SharedPrefsHelper.setLoggedUserEmail(emailInput.toLowerCase());
         await SharedPrefsHelper.setFirstTime(false);
-        await _saveRememberMeEmail(email);
-        await SharedPrefsHelper.saveActivity(
-          'Berhasil masuk ke dalam aplikasi',
-        );
+        await _saveRememberMeEmail(emailInput.toLowerCase());
+        await SharedPrefsHelper.saveActivity('Berhasil masuk ke dalam aplikasi');
 
         if (!mounted) return;
         Navigator.pushAndRemoveUntil(
@@ -99,26 +174,25 @@ class _LoginScreenState extends State<LoginScreen> {
           (route) => false,
         );
       } else {
-        debugPrint('❌ Login GAGAL: Email atau password salah');
+        debugPrint('❌ Login GAGAL: email atau password tidak cocok di DB');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Email atau password salah.')),
+            const SnackBar(
+              content: Text('Email atau password salah.'),
+              backgroundColor: Colors.redAccent,
+            ),
           );
         }
       }
     } catch (e) {
-      debugPrint('❌ Error login: $e');
+      debugPrint('🔥 Exception saat login: $e');
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Terjadi kesalahan login: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Terjadi kesalahan: $e')),
+        );
       }
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
