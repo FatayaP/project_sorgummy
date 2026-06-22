@@ -527,11 +527,9 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ),
-          ),
-        ),
-      ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildMenuItem(BuildContext context, ImageProvider? customAvatar, IconData icon, String title, String subtitle, VoidCallback onTap) {
     return Material(
