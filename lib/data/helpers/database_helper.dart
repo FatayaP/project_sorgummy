@@ -5,6 +5,7 @@ import 'package:path/path.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:crypto/crypto.dart';
 import '../models/pengelolaan_item.dart';
+import 'shared_prefs_helper.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Key SharedPreferences untuk web fallback (kIsWeb = true)
@@ -31,7 +32,7 @@ class DatabaseHelper {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
 
-    // Versi 6: field artikel diperluas (masalah, langkah_solusi, thumbnail, dll)
+    // Versi 6: field artikel diperluas (masalah, langkah_solusi, thumbnail, dll) dan daily_notes drawing_path
     return await openDatabase(
       path,
       version: 6,
@@ -130,6 +131,27 @@ class DatabaseHelper {
       )
     ''');
 
+    // 7. Tabel Search History (Riwayat Pencarian)
+    await db.execute('''
+      CREATE TABLE search_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        query TEXT NOT NULL UNIQUE,
+        timestamp INTEGER NOT NULL
+      )
+    ''');
+
+    // 8. Tabel Daily Notes (Catatan Harian)
+    await db.execute('''
+      CREATE TABLE daily_notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title $textType,
+        category $textType,
+        content $textType,
+        date $textType,
+        drawing_path TEXT
+      )
+    ''');
+
     // Masukkan data profil bawaan awal
     await db.insert('user_profile', {
       'id': 1,
@@ -193,7 +215,6 @@ class DatabaseHelper {
       ''');
     }
 
-    // ── Versi 5: tabel baru untuk admin CRUD ─────────────────────────────
     if (oldVersion < 5) {
       await db.execute('''
         CREATE TABLE IF NOT EXISTS table_edukasi (
@@ -218,19 +239,47 @@ class DatabaseHelper {
           tanggal  $textType
         )
       ''');
+
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS search_history (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          query TEXT NOT NULL UNIQUE,
+          timestamp INTEGER NOT NULL
+        )
+      ''');
+
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS daily_notes (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          title $textType,
+          category $textType,
+          content $textType,
+          date $textType,
+          drawing_path TEXT
+        )
+      ''');
     }
 
     // ── Versi 6: kolom baru untuk form artikel kaya field ───────────────
     if (oldVersion < 6) {
       for (final table in ['table_edukasi', 'table_pengelolaan']) {
-        await db.execute("ALTER TABLE $table ADD COLUMN estimasi_baca TEXT NOT NULL DEFAULT ''");
-        await db.execute("ALTER TABLE $table ADD COLUMN badge TEXT NOT NULL DEFAULT ''");
-        await db.execute("ALTER TABLE $table ADD COLUMN judul_langkah TEXT NOT NULL DEFAULT ''");
-        await db.execute("ALTER TABLE $table ADD COLUMN masalah TEXT NOT NULL DEFAULT ''");
-        await db.execute("ALTER TABLE $table ADD COLUMN penyebab TEXT NOT NULL DEFAULT ''");
-        await db.execute("ALTER TABLE $table ADD COLUMN langkah_solusi TEXT NOT NULL DEFAULT '[]'");
-        await db.execute("ALTER TABLE $table ADD COLUMN tips_ahli TEXT NOT NULL DEFAULT ''");
-        await db.execute("ALTER TABLE $table ADD COLUMN thumbnail TEXT NOT NULL DEFAULT ''");
+        try {
+          await db.execute("ALTER TABLE $table ADD COLUMN estimasi_baca TEXT NOT NULL DEFAULT ''");
+          await db.execute("ALTER TABLE $table ADD COLUMN badge TEXT NOT NULL DEFAULT ''");
+          await db.execute("ALTER TABLE $table ADD COLUMN judul_langkah TEXT NOT NULL DEFAULT ''");
+          await db.execute("ALTER TABLE $table ADD COLUMN masalah TEXT NOT NULL DEFAULT ''");
+          await db.execute("ALTER TABLE $table ADD COLUMN penyebab TEXT NOT NULL DEFAULT ''");
+          await db.execute("ALTER TABLE $table ADD COLUMN langkah_solusi TEXT NOT NULL DEFAULT '[]'");
+          await db.execute("ALTER TABLE $table ADD COLUMN tips_ahli TEXT NOT NULL DEFAULT ''");
+          await db.execute("ALTER TABLE $table ADD COLUMN thumbnail TEXT NOT NULL DEFAULT ''");
+        } catch (e) {
+          // Abaikan jika kolom sudah ada
+        }
+      }
+      try {
+        await db.execute('ALTER TABLE daily_notes ADD COLUMN drawing_path TEXT');
+      } catch (e) {
+        // Abaikan jika kolom sudah ada
       }
     }
   }
@@ -664,5 +713,186 @@ class DatabaseHelper {
       return before - list.length;
     }
     return await db.delete('table_pengelolaan', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // =========================================================================
+  // OPERASI CRUD TABEL SEARCH_HISTORY (RIWAYAT PENCARIAN)
+  // =========================================================================
+
+  // A. SQLITE CREATE: Menyimpan kata kunci pencarian baru ke tabel search_history
+  Future<int> insertSearchHistory(String query) async {
+    final db = await instance.database;
+    if (db == null) {
+      // Fallback untuk Web
+      final prefs = await SharedPreferences.getInstance();
+      List<String> history = prefs.getStringList('web_search_history') ?? [];
+      history.remove(query);
+      history.insert(0, query);
+
+      final limit = prefs.getInt('search_history_limit') ?? 10;
+      if (history.length > limit) {
+        history = history.sublist(0, limit);
+      }
+      await prefs.setStringList('web_search_history', history);
+      return 1;
+    }
+
+    final limit = await SharedPrefsHelper.getSearchHistoryLimit();
+
+    return await db.transaction((txn) async {
+      // Hapus jika query yang sama sudah ada agar timestamp baru berada di paling atas
+      await txn.delete('search_history', where: 'query = ?', whereArgs: [query]);
+
+      final id = await txn.insert('search_history', {
+        'query': query,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      });
+
+      // Hapus riwayat yang lebih lama jika jumlahnya melebihi limit
+      final List<Map<String, dynamic>> countResult =
+          await txn.rawQuery('SELECT COUNT(*) as count FROM search_history');
+      final count = countResult.first['count'] as int;
+
+      if (count > limit) {
+        final List<Map<String, dynamic>> boundaryResult = await txn.query(
+          'search_history',
+          columns: ['timestamp'],
+          orderBy: 'timestamp DESC',
+          limit: 1,
+          offset: limit - 1,
+        );
+        if (boundaryResult.isNotEmpty) {
+          final boundaryTime = boundaryResult.first['timestamp'] as int;
+          await txn.delete(
+            'search_history',
+            where: 'timestamp < ?',
+            whereArgs: [boundaryTime],
+          );
+        }
+      }
+      return id;
+    });
+  }
+
+  // B. SQLITE READ: Menampilkan riwayat pencarian terakhir
+  Future<List<String>> getSearchHistory() async {
+    final db = await instance.database;
+    if (db == null) {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getStringList('web_search_history') ?? [];
+    }
+
+    final limit = await SharedPrefsHelper.getSearchHistoryLimit();
+
+    final List<Map<String, dynamic>> maps = await db.query(
+      'search_history',
+      columns: ['query'],
+      orderBy: 'timestamp DESC',
+      limit: limit,
+    );
+
+    return maps.map((map) => map['query'] as String).toList();
+  }
+
+  // C. SQLITE DELETE: Menghapus satu atau semua riwayat pencarian
+  Future<int> deleteSearchHistoryItem(String query) async {
+    final db = await instance.database;
+    if (db == null) {
+      final prefs = await SharedPreferences.getInstance();
+      List<String> history = prefs.getStringList('web_search_history') ?? [];
+      history.remove(query);
+      await prefs.setStringList('web_search_history', history);
+      return 1;
+    }
+
+    return await db.delete(
+      'search_history',
+      where: 'query = ?',
+      whereArgs: [query],
+    );
+  }
+
+  Future<int> clearAllSearchHistory() async {
+    final db = await instance.database;
+    if (db == null) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('web_search_history');
+      return 1;
+    }
+
+    return await db.delete('search_history');
+  }
+
+  // =========================================================================
+  // OPERASI CRUD TABEL DAILY_NOTES (CATATAN HARIAN)
+  // =========================================================================
+
+  Future<int> insertDailyNote(Map<String, dynamic> note) async {
+    final db = await instance.database;
+    if (db == null) {
+      // Fallback untuk Web
+      final prefs = await SharedPreferences.getInstance();
+      List<Map<String, dynamic>> notes = await getDailyNotesWeb();
+      int newId = notes.isEmpty ? 1 : (notes.map((n) => n['id'] as int).reduce((a, b) => a > b ? a : b) + 1);
+      final noteWithId = Map<String, dynamic>.from(note);
+      noteWithId['id'] = newId;
+      notes.add(noteWithId);
+      await prefs.setString('web_daily_notes', jsonEncode(notes));
+      return newId;
+    }
+    return await db.insert('daily_notes', note);
+  }
+
+  Future<List<Map<String, dynamic>>> getDailyNotesWeb() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String raw = prefs.getString('web_daily_notes') ?? '[]';
+    final List<dynamic> list = jsonDecode(raw);
+    return list.map((e) => Map<String, dynamic>.from(e)).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> getDailyNotes() async {
+    final db = await instance.database;
+    if (db == null) {
+      return await getDailyNotesWeb();
+    }
+    return await db.query('daily_notes');
+  }
+
+  Future<int> updateDailyNote(Map<String, dynamic> note) async {
+    final db = await instance.database;
+    final int id = note['id'] as int;
+    if (db == null) {
+      final prefs = await SharedPreferences.getInstance();
+      List<Map<String, dynamic>> notes = await getDailyNotesWeb();
+      int index = notes.indexWhere((n) => n['id'] == id);
+      if (index != -1) {
+        notes[index] = note;
+        await prefs.setString('web_daily_notes', jsonEncode(notes));
+        return 1;
+      }
+      return 0;
+    }
+    return await db.update(
+      'daily_notes',
+      note,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<int> deleteDailyNote(int id) async {
+    final db = await instance.database;
+    if (db == null) {
+      final prefs = await SharedPreferences.getInstance();
+      List<Map<String, dynamic>> notes = await getDailyNotesWeb();
+      notes.removeWhere((n) => n['id'] == id);
+      await prefs.setString('web_daily_notes', jsonEncode(notes));
+      return 1;
+    }
+    return await db.delete(
+      'daily_notes',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
   }
 }

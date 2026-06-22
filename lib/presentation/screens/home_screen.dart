@@ -2,6 +2,8 @@ import 'dart:convert'; // Untuk decode base64 gambar
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants/colors.dart';
+import '../../data/helpers/database_helper.dart';
+import '../../data/helpers/shared_prefs_helper.dart';
 import 'chat_screen.dart';
 import 'pengelolaan_screen.dart';
 import 'notification_screen.dart';
@@ -9,6 +11,8 @@ import 'search_screen.dart';
 import 'edukasi_screen.dart';
 import 'artikel_screen.dart';
 import 'profile_screen.dart';
+import 'daily_notes_screen.dart';
+import '../widgets/history_tag_cloud.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -19,6 +23,12 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String? _homeBase64Image; // Sinkronisasi gambar via SharedPreferences
+  final FocusNode _searchFocusNode = FocusNode();
+  final TextEditingController _searchController = TextEditingController();
+  List<String> _searchHistory = [];
+  bool _isSearchSuggestionsOn = true;
+  bool _isSearchFocused = false;
+  bool _isInteractingWithHistory = false;
 
   List<Map<String, dynamic>> _notifications = [
     {
@@ -78,6 +88,71 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadHomeProfileImage();
+    _loadSearchHistorySettings();
+    _searchFocusNode.addListener(() {
+      if (_searchFocusNode.hasFocus) {
+        setState(() {
+          _isSearchFocused = true;
+        });
+        _loadSearchHistory();
+      } else {
+        if (_isInteractingWithHistory) return;
+        // Beri jeda agar tap pada item riwayat sempat terproses sebelum widget ditutup
+        Future.delayed(const Duration(milliseconds: 200), () {
+          if (mounted && !_searchFocusNode.hasFocus && !_isInteractingWithHistory) {
+            setState(() {
+              _isSearchFocused = false;
+            });
+          }
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchFocusNode.dispose();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  // Memuat pengaturan status saran pencarian dari SharedPreferences
+  Future<void> _loadSearchHistorySettings() async {
+    final suggestionsOn = await SharedPrefsHelper.isSearchSuggestionsOn();
+    setState(() {
+      _isSearchSuggestionsOn = suggestionsOn;
+    });
+  }
+
+  // Mengambil daftar riwayat pencarian terbaru dari database
+  Future<void> _loadSearchHistory() async {
+    final history = await DatabaseHelper.instance.getSearchHistory();
+    setState(() {
+      _searchHistory = history;
+    });
+  }
+
+  // Eksekusi pencarian: menyimpan ke riwayat database lalu navigasi
+  void _executeSearch(String query) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return;
+
+    await DatabaseHelper.instance.insertSearchHistory(trimmed);
+    
+    _searchController.clear();
+    _searchFocusNode.unfocus();
+
+    if (mounted) {
+      _loadSearchHistory();
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => SearchScreen(query: trimmed)),
+      ).then((_) {
+        // Refresh data ketika kembali ke Beranda
+        _loadSearchHistorySettings();
+        _loadSearchHistory();
+      });
+    }
   }
 
   // Ambil gambar secara lokal dari device saat aplikasi dibuka kembali
@@ -133,12 +208,19 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Scaffold(
         backgroundColor: AppColors.backgroundWhite,
         body: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: double.infinity,
-              ),
-              child: SingleChildScrollView(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              if (_searchFocusNode.hasFocus) {
+                _searchFocusNode.unfocus();
+              }
+            },
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: double.infinity,
+                ),
+                child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
                 padding: const EdgeInsets.all(24.0),
                 child: Column(
@@ -191,24 +273,173 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                     const SizedBox(height: 24),
-                    Container(
-                      decoration: BoxDecoration(color: AppColors.cardLightGrey, borderRadius: BorderRadius.circular(50)),
-                      child: TextField(
-                        textInputAction: TextInputAction.search,
-                        onSubmitted: (value) {
-                          if (value.trim().isNotEmpty) {
-                            Navigator.push(context, MaterialPageRoute(builder: (_) => SearchScreen(query: value)));
-                          }
-                        },
-                        decoration: InputDecoration(
-                          hintText: 'Cari edukasi, pengelolaan, dll...',
-                          hintStyle: TextStyle(color: AppColors.textLight.withOpacity(0.7), fontSize: 13),
-                          prefixIcon: const Icon(Icons.search, color: AppColors.textLight),
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                    // TextField Pencarian dengan penanganan focus dan aksi pencarian
+                    GestureDetector(
+                      onTap: () {}, // Mencegah klik di dalam kolom memicu GestureDetector luar
+                      child: Container(
+                        decoration: BoxDecoration(color: AppColors.cardLightGrey, borderRadius: BorderRadius.circular(50)),
+                        child: TextField(
+                          controller: _searchController,
+                          focusNode: _searchFocusNode,
+                          textInputAction: TextInputAction.search,
+                          onSubmitted: _executeSearch,
+                          style: const TextStyle(fontSize: 14, color: AppColors.textCharcoal),
+                          decoration: InputDecoration(
+                            hintText: 'Cari edukasi, pengelolaan, dll...',
+                            hintStyle: TextStyle(color: AppColors.textLight.withOpacity(0.7), fontSize: 13),
+                            prefixIcon: const Icon(Icons.search, color: AppColors.textLight),
+                            suffixIcon: _isSearchFocused
+                                ? IconButton(
+                                    icon: const Icon(Icons.close, color: AppColors.textLight, size: 20),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      _searchFocusNode.unfocus();
+                                    },
+                                  )
+                                : null,
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
                         ),
                       ),
                     ),
+
+                    // Tampilan List Riwayat Pencarian (Dropdown) jika aktif, difokuskan dan memiliki riwayat
+                    if (_isSearchFocused && _isSearchSuggestionsOn && _searchHistory.isNotEmpty)
+                      TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 0.0, end: 1.0),
+                        duration: const Duration(milliseconds: 200),
+                        builder: (context, value, child) {
+                          return Opacity(
+                            opacity: value,
+                            child: Transform.translate(
+                              offset: Offset(0, (1 - value) * -10),
+                              child: child,
+                            ),
+                          );
+                        },
+                        child: Listener(
+                          onPointerDown: (_) {
+                            _isInteractingWithHistory = true;
+                          },
+                          onPointerUp: (_) {
+                            _isInteractingWithHistory = false;
+                            if (!_searchFocusNode.hasFocus) {
+                              Future.delayed(const Duration(milliseconds: 200), () {
+                                if (mounted && !_searchFocusNode.hasFocus && !_isInteractingWithHistory) {
+                                  setState(() {
+                                    _isSearchFocused = false;
+                                  });
+                                }
+                              });
+                            }
+                          },
+                          onPointerCancel: (_) {
+                            _isInteractingWithHistory = false;
+                            if (!_searchFocusNode.hasFocus) {
+                              Future.delayed(const Duration(milliseconds: 200), () {
+                                if (mounted && !_searchFocusNode.hasFocus && !_isInteractingWithHistory) {
+                                  setState(() {
+                                    _isSearchFocused = false;
+                                  });
+                                }
+                              });
+                            }
+                          },
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () {}, // Mencegah klik di area dropdown memicu penutupan focus secara otomatis
+                            child: Container(
+                              margin: const EdgeInsets.only(top: 12),
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.08),
+                                    blurRadius: 15,
+                                    offset: const Offset(0, 5),
+                                  ),
+                                ],
+                                border: Border.all(color: AppColors.dividerGrey.withOpacity(0.4)),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Text(
+                                        'Pencarian Terakhir',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColors.textCharcoal,
+                                        ),
+                                      ),
+                                      GestureDetector(
+                                        onTap: () async {
+                                          await DatabaseHelper.instance.clearAllSearchHistory();
+                                          _loadSearchHistory();
+                                        },
+                                        child: const Text(
+                                          'Hapus Semua',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.redAccent,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  const Divider(height: 1, color: AppColors.dividerGrey),
+                                  const SizedBox(height: 8),
+                                  InteractiveHistoryCanvasTagCloud(
+                                    keywords: _searchHistory,
+                                    onTagTapped: (keyword) {
+                                      _executeSearch(keyword);
+                                    },
+                                    onTagDoubleTapped: (keyword) {
+                                      _executeSearch(keyword);
+                                    },
+                                    onTagLongPressed: (keyword) async {
+                                      final confirmed = await showDialog<bool>(
+                                        context: context,
+                                        builder: (context) => AlertDialog(
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                          title: const Text('Hapus Riwayat', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textCharcoal)),
+                                          content: Text('Hapus "$keyword" dari riwayat pencarian Anda?', style: const TextStyle(color: AppColors.textLight)),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () => Navigator.pop(context, false),
+                                              child: const Text('Batal', style: TextStyle(color: AppColors.textLight)),
+                                            ),
+                                            FilledButton(
+                                              style: FilledButton.styleFrom(
+                                                backgroundColor: Colors.redAccent,
+                                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                              ),
+                                              onPressed: () => Navigator.pop(context, true),
+                                              child: const Text('Hapus'),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                      if (confirmed == true) {
+                                        await DatabaseHelper.instance.deleteSearchHistoryItem(keyword);
+                                        _loadSearchHistory();
+                                      }
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                     const SizedBox(height: 24),
                     Container(
                       width: double.infinity,
@@ -257,6 +488,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         _buildMenuItem(context, null, Icons.eco, 'Pengelolaan', 'Panduan pengelolaan\nsorgum', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PengelolaanScreen()))),
                         _buildMenuItem(context, null, Icons.article, 'Artikel', 'Informasi & berita\nterbaru', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ArtikelScreen()))),
                         _buildMenuItem(context, null, Icons.notifications_active, 'Notifikasi', 'Update & info\npenting', _navigateToNotification),
+                        _buildMenuItem(context, null, Icons.note_alt_rounded, 'Catatan Harian', 'Tulis & kelola\ncatatan Anda', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DailyNotesScreen()))),
                         _buildMenuItem(
                           context, 
                           _getAvatarImage(), 
@@ -292,6 +524,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
+          ),
+        ),
+      ),
           ),
         ),
       ),

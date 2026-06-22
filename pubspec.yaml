@@ -23,6 +23,8 @@ dependencies:
   flutter_animate: ^4.5.0
   email_validator: ^2.1.1
   iconsax: ^0.0.8
+  flutter_slidable: ^4.0.3
+  share_plus: ^13.1.0
 
 dev_dependencies:
   flutter_test:

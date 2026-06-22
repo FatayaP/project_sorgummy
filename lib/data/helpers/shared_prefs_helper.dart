@@ -145,4 +145,98 @@ class SharedPrefsHelper {
     final String key = _activityKey(userEmail);
     await prefs.remove(key);
   }
+  // =========================================================================
+  // CONFIGURATIONS FOR SEARCH HISTORY & SUGGESTIONS
+  // =========================================================================
+  static const String _searchHistoryLimitKey = 'search_history_limit';
+  static const String _isSearchSuggestionsOnKey = 'is_search_suggestions_on';
+
+  // Getter & Setter search_history_limit (default: 10)
+  static Future<int> getSearchHistoryLimit() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_searchHistoryLimitKey) ?? 10;
+  }
+
+  static Future<void> setSearchHistoryLimit(int limit) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_searchHistoryLimitKey, limit);
+  }
+
+  // Getter & Setter is_search_suggestions_on (default: true)
+  static Future<bool> isSearchSuggestionsOn() async {
+    return true; // Tetapkan agar selalu nyala (always ON)
+  }
+
+  static Future<void> setSearchSuggestionsOn(bool isOn) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_isSearchSuggestionsOnKey, true);
+  }
+
+  // --- Daily Notes Settings ---
+  static const String notesDefaultCategoryKey = 'notes_default_category';
+  static const String isNotesSortByDateDescKey = 'is_notes_sort_by_date_desc';
+
+  static Future<String> getNotesDefaultCategory() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(notesDefaultCategoryKey) ?? 'Umum';
+  }
+
+  static Future<void> setNotesDefaultCategory(String category) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(notesDefaultCategoryKey, category);
+  }
+
+  static Future<bool> isNotesSortByDateDesc() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(isNotesSortByDateDescKey) ?? true;
+  }
+
+  static Future<void> setNotesSortByDateDesc(bool isDesc) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(isNotesSortByDateDescKey, isDesc);
+  }
+
+  // =========================================================================
+  // WEB FALLBACK SEARCH HISTORY STORAGE (SharedPreferences)
+  // =========================================================================
+  static String _webSearchHistoryKey(String userEmail) => 'web_search_history_$userEmail';
+
+  static Future<List<String>> getWebSearchHistory({String? userEmail}) async {
+    userEmail ??= await getLoggedUserEmail() ?? 'guest';
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getStringList(_webSearchHistoryKey(userEmail)) ?? [];
+  }
+
+  static Future<void> saveWebSearchHistory(String keyword, {String? userEmail}) async {
+    userEmail ??= await getLoggedUserEmail() ?? 'guest';
+    final prefs = await SharedPreferences.getInstance();
+    final key = _webSearchHistoryKey(userEmail);
+    List<String> history = prefs.getStringList(key) ?? [];
+    
+    // Hapus jika ada duplikat agar kata kunci terangkat ke posisi teratas (timestamp paling baru)
+    history.remove(keyword);
+    history.insert(0, keyword);
+    
+    final limit = await getSearchHistoryLimit();
+    if (history.length > limit) {
+      history = history.sublist(0, limit);
+    }
+    await prefs.setStringList(key, history);
+  }
+
+  static Future<void> deleteWebSearchHistoryItem(String keyword, {String? userEmail}) async {
+    userEmail ??= await getLoggedUserEmail() ?? 'guest';
+    final prefs = await SharedPreferences.getInstance();
+    final key = _webSearchHistoryKey(userEmail);
+    List<String> history = prefs.getStringList(key) ?? [];
+    history.remove(keyword);
+    await prefs.setStringList(key, history);
+  }
+
+  static Future<void> clearAllWebSearchHistory({String? userEmail}) async {
+    userEmail ??= await getLoggedUserEmail() ?? 'guest';
+    final prefs = await SharedPreferences.getInstance();
+    final key = _webSearchHistoryKey(userEmail);
+    await prefs.remove(key);
+  }
 }
